@@ -5,6 +5,9 @@
 
   let items = [];
   let searchTerm = '';
+  let selectedItem = null;
+  let showDialog = false;
+  let removeQuantity = 1;
   
   $: filteredItems = items.filter(item => {
     const search = searchTerm.toLowerCase();
@@ -34,13 +37,31 @@
     }
   });
 
-  async function updateQuantity(item, change) {
-    const newQuantity = Math.max(0, item.antall + change);
-    await fetch(`http://localhost:3000/api/inventory/${item.id}`, {
+  function showRemoveDialog(item) {
+    selectedItem = item;
+    removeQuantity = 1;
+    showDialog = true;
+  }
+
+  async function confirmRemove() {
+    if (!selectedItem) return;
+    
+    const newQuantity = Math.max(0, selectedItem.antall - removeQuantity);
+    await fetch(`http://localhost:3000/api/inventory/${selectedItem.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...item, antall: newQuantity })
+      body: JSON.stringify({ ...selectedItem, antall: newQuantity })
     });
+    
+    showDialog = false;
+    selectedItem = null;
+    removeQuantity = 1;
+  }
+
+  function cancelRemove() {
+    showDialog = false;
+    selectedItem = null;
+    removeQuantity = 1;
   }
 
   function goToManage() {
@@ -88,14 +109,35 @@
           <div class="table-cell">{item.inn_pris?.toFixed(2)}</div>
           <div class="table-cell">{item.ut_pris?.toFixed(2)}</div>
           <div class="table-cell quantity-cell">
-            <button class="quantity-btn minus" on:click={() => updateQuantity(item, -1)}>-</button>
+            <button class="quantity-btn minus" on:click={() => showRemoveDialog(item)}>-</button>
             <span class="quantity">{item.antall}</span>
-            <button class="quantity-btn plus" on:click={() => updateQuantity(item, 1)}>+</button>
           </div>
         </div>
       {/each}
     </div>
   </main>
+{/if}
+
+{#if showDialog}
+  <div class="dialog-overlay">
+    <div class="dialog">
+      <h3>Fjern fra lager</h3>
+      <p>Hvor mange enheter vil du fjerne fra {selectedItem?.navn}?</p>
+      <div class="dialog-content">
+        <input 
+          type="number" 
+          bind:value={removeQuantity} 
+          min="1" 
+          max={selectedItem?.antall} 
+          class="quantity-input"
+        />
+      </div>
+      <div class="dialog-buttons">
+        <button class="cancel-btn" on:click={cancelRemove}>Avbryt</button>
+        <button class="confirm-btn" on:click={confirmRemove}>Bekreft</button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -254,6 +296,7 @@
   .quantity {
     min-width: 30px;
     text-align: center;
+    font-weight: bold;
   }
 
   .quantity-btn {
@@ -272,11 +315,81 @@
     background: linear-gradient(180deg, #c82333 0%, #bd2130 100%);
   }
 
-  .quantity-btn.plus {
-    background: linear-gradient(180deg, #28a745 0%, #218838 100%);
+  .dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
   }
 
-  .quantity-btn.plus:hover {
-    background: linear-gradient(180deg, #218838 0%, #1e7e34 100%);
+  .dialog {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .dialog h3 {
+    margin: 0 0 16px 0;
+    color: #212529;
+  }
+
+  .dialog p {
+    margin: 0 0 16px 0;
+    color: #495057;
+  }
+
+  .dialog-content {
+    margin-bottom: 24px;
+  }
+
+  .quantity-input {
+    width: 120px;
+    padding: 6px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #212529;
+    background-color: #f8f9fa;
+    margin: 0 auto;
+    display: block;
+  }
+
+  .quantity-input:focus {
+    outline: none;
+    border-color: #646cff;
+    box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
+  }
+
+  .dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  .cancel-btn {
+    background: #6c757d;
+    color: white;
+  }
+
+  .cancel-btn:hover {
+    background: #5a6268;
+  }
+
+  .confirm-btn {
+    background: #dc3545;
+    color: white;
+  }
+
+  .confirm-btn:hover {
+    background: #c82333;
   }
 </style>
