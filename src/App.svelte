@@ -53,28 +53,28 @@
 {:else}
   <main>
     <div class="header">
-      <h2>Inventory List</h2>
+      <h2>Lagerliste</h2>
       <div class="header-controls">
         <div class="search-container">
           <input 
             type="text" 
             bind:value={searchTerm} 
-            placeholder="Search by Delenummer or Navn..."
+            placeholder="Søk etter delenummer eller navn..."
             class="search-input"
           />
         </div>
-        <button class="manage-button" on:click={goToManage}>Manage Inventory</button>
+        <button class="manage-button" on:click={goToManage}>Administrer Lager</button>
       </div>
     </div>
 
     <div class="excel-table">
       <div class="table-header">
-        <div class="header-cell">Lokasjon</div>
+        <div class="header-cell">Plassering</div>
         <div class="header-cell">Delenummer</div>
         <div class="header-cell">Navn</div>
         <div class="header-cell">Beskrivelse</div>
-        <div class="header-cell">Inn pris</div>
-        <div class="header-cell">Ut pris</div>
+        <div class="header-cell">Innkjøpspris</div>
+        <div class="header-cell">Utsalgspris</div>
         <div class="header-cell">Antall</div>
       </div>
 
@@ -123,12 +123,14 @@
     font-size: 14px;
     width: 300px;
     transition: all 0.15s ease-in-out;
+    background-color: #f8f9fa;
+    color: #212529;
   }
 
   .search-input:focus {
     outline: none;
-    border-color: #80bdff;
-    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+    border-color: #646cff;
+    box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
   }
 
   .search-input::placeholder {

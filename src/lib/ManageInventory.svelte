@@ -67,7 +67,7 @@
   }
 
   async function deleteItem(id) {
-    if (confirm('Are you sure you want to delete this item?')) {
+    if (confirm('Er du sikker på at du vil slette denne varen?')) {
       await fetch(`http://localhost:3000/api/inventory/${id}`, {
         method: 'DELETE'
       });
@@ -89,26 +89,26 @@
 
 <main>
   <div class="header">
-    <h2>Manage Inventory</h2>
-    <button class="back-button" on:click={goToList}>Back to List</button>
+    <h2>Administrer Lager</h2>
+    <button class="back-button" on:click={goToList}>Tilbake til Liste</button>
   </div>
 
   <div class="excel-table">
     <div class="table-header">
-      <div class="header-cell">Lokasjon</div>
+      <div class="header-cell">Plassering</div>
       <div class="header-cell">Delenummer</div>
       <div class="header-cell">Navn</div>
       <div class="header-cell">Beskrivelse</div>
-      <div class="header-cell">Inn pris</div>
-      <div class="header-cell">Ut pris</div>
+      <div class="header-cell">Innkjøpspris</div>
+      <div class="header-cell">Utsalgspris</div>
       <div class="header-cell">Antall</div>
-      <div class="header-cell">Actions</div>
+      <div class="header-cell">Handlinger</div>
     </div>
 
     <!-- New Item Row -->
     <div class="table-row new-row">
       <div class="table-cell">
-        <input bind:value={newItem.lokasjon} placeholder="Lokasjon" />
+        <input bind:value={newItem.lokasjon} placeholder="Plassering" />
       </div>
       <div class="table-cell">
         <input bind:value={newItem.delenummer} placeholder="Delenummer" />
@@ -120,16 +120,16 @@
         <input bind:value={newItem.beskrivelse} placeholder="Beskrivelse" />
       </div>
       <div class="table-cell">
-        <input type="number" step="0.01" bind:value={newItem.inn_pris} placeholder="Inn pris" />
+        <input type="number" step="0.01" bind:value={newItem.inn_pris} placeholder="Innkjøpspris" />
       </div>
       <div class="table-cell">
-        <input type="number" step="0.01" bind:value={newItem.ut_pris} placeholder="Ut pris" />
+        <input type="number" step="0.01" bind:value={newItem.ut_pris} placeholder="Utsalgspris" />
       </div>
       <div class="table-cell">
         <input type="number" bind:value={newItem.antall} placeholder="Antall" />
       </div>
       <div class="table-cell">
-        <button class="add-button" on:click={addItem}>Add</button>
+        <button class="add-button" on:click={addItem}>Legg til</button>
       </div>
     </div>
 
@@ -159,8 +159,8 @@
             <input type="number" bind:value={editing.antall} />
           </div>
           <div class="table-cell actions">
-            <button on:click={() => updateItem(editing)}>Save</button>
-            <button on:click={cancelEdit}>Cancel</button>
+            <button on:click={() => updateItem(editing)}>Lagre</button>
+            <button on:click={cancelEdit}>Avbryt</button>
           </div>
         {:else}
           <div class="table-cell">{item.lokasjon}</div>
@@ -171,8 +171,8 @@
           <div class="table-cell">{item.ut_pris?.toFixed(2)}</div>
           <div class="table-cell">{item.antall}</div>
           <div class="table-cell actions">
-            <button on:click={() => startEdit(item)}>Edit</button>
-            <button on:click={() => deleteItem(item.id)}>Delete</button>
+            <button on:click={() => startEdit(item)}>Rediger</button>
+            <button on:click={() => deleteItem(item.id)}>Slett</button>
           </div>
         {/if}
       </div>
