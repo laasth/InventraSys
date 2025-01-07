@@ -39,22 +39,71 @@ A modern inventory management system built with Svelte and Express, featuring re
    npm install
    ```
 
+### Configuration
+
+The application supports customizable host and port settings through environment variables:
+
+- `HOST` - The host address to bind to (defaults to 'localhost')
+- `PORT` - The port number to use (defaults to 3000)
+
 ### Running the Application
 
-Start both the backend server and frontend development server:
-
+1. Build the frontend:
 ```bash
-npm run dev
+# Windows (PowerShell) or Linux/macOS
+npm run build
+```
+
+2. Start the server:
+```bash
+# Windows (PowerShell) or Linux/macOS
+node server.js
 ```
 
 This will:
-- Start the Express backend server on port 3000
-- Launch the Vite development server for the frontend
+- Build and serve the frontend static files
+- Start the Express backend server
 - Import initial data from Telleliste.csv (if the database is empty)
 
-The application will be available at:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3000
+The application will be available at `http://localhost:3000` (or your configured host/port).
+
+#### Custom Configuration
+
+To use different host/port settings:
+
+##### Windows (PowerShell)
+```powershell
+# Example: Run on a different port
+$env:PORT="3001"; node server.js
+
+# Example: Run on a specific host and port
+$env:HOST="192.168.1.100"; $env:PORT="8080"; node server.js
+```
+
+##### Linux/macOS (Bash)
+```bash
+# Example: Run on a different port
+PORT=3001 node server.js
+
+# Example: Run on a specific host and port
+HOST=192.168.1.100 PORT=8080 node server.js
+
+# Example: Export variables for reuse in current session
+export HOST=192.168.1.100
+export PORT=8080
+node server.js
+```
+
+#### Development Mode
+
+For development with hot reloading:
+
+```bash
+# Windows (PowerShell) or Linux/macOS
+npm run dev
+```
+
+This will start the Vite development server with API proxy configuration matching your HOST/PORT settings.
 
 ## Project Structure
 

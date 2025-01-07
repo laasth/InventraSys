@@ -1,25 +1,22 @@
 import express from 'express';
-import cors from 'cors';
 import Database from 'better-sqlite3';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const HOST = process.env.HOST || 'localhost';
+const PORT = process.env.PORT || 3000;
 
 const app = express();
 const db = new Database('inventory.db');
 
-app.use(cors({
-  origin: 'http://localhost:5173',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
+// Serve static files from the dist directory
+app.use(express.static(path.join(__dirname, 'dist')));
 
 app.use(express.json());
-
-// Enable CORS for SSE endpoint specifically
-app.use('/api/updates', (req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  next();
-});
 
 // Store connected clients
 let clients = [];
@@ -159,8 +156,12 @@ app.delete('/api/inventory/:id', (req, res) => {
   res.json({ success: true });
 });
 
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Serve index.html for all non-API routes (client-side routing)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+app.listen(PORT, HOST, () => {
+  console.log(`Server running at http://${HOST}:${PORT}`);
   importCsvData(); // Import CSV data when server starts
 });
