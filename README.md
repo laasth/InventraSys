@@ -67,8 +67,7 @@ InventraSys/
 │   └── main.js           # Application entry point
 ├── public/                # Public static files
 ├── server.js             # Express backend server
-├── inventory.db          # SQLite database
-└── Telleliste.csv        # Initial inventory data
+└── inventory.db          # SQLite database
 ```
 
 ## Features in Detail
@@ -112,7 +111,3 @@ InventraSys/
   - Express.js
   - SQLite (better-sqlite3)
   - CORS for cross-origin support
-
-## License
-
-[Your chosen license]
