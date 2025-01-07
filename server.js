@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createServer as createViteServer } from 'vite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,8 +14,26 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 const db = new Database('inventory.db');
 
-// Serve static files from the dist directory
-app.use(express.static(path.join(__dirname, 'dist')));
+const isDev = process.env.NODE_ENV !== 'production';
+
+// Setup Vite middleware in development mode
+async function setupVite() {
+  if (isDev) {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+      root: __dirname
+    });
+    
+    // Use vite's connect instance as middleware
+    app.use(vite.middlewares);
+  } else {
+    app.use(express.static(path.join(__dirname, 'dist')));
+  }
+}
+
+// Initialize Vite
+setupVite().catch(console.error);
 
 app.use(express.json());
 
@@ -156,9 +175,15 @@ app.delete('/api/inventory/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// Serve index.html for all non-API routes (client-side routing)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+// Handle non-API routes
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    next();
+  } else if (!isDev) {
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  } else {
+    next();
+  }
 });
 
 app.listen(PORT, HOST, () => {

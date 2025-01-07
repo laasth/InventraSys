@@ -48,21 +48,27 @@ The application supports customizable host and port settings through environment
 
 ### Running the Application
 
-1. Build the frontend:
+#### Development Mode
+
+For development with hot reloading:
+
 ```bash
-# Windows (PowerShell) or Linux/macOS
-npm run build
+npm run dev
 ```
 
-2. Start the server:
+This will start a single server that handles both the frontend and API, with hot reloading enabled.
+
+#### Production Mode
+
+1. Build and start the application:
 ```bash
-# Windows (PowerShell) or Linux/macOS
-node server.js
+npm run build
+npm start
 ```
 
 This will:
-- Build and serve the frontend static files
-- Start the Express backend server
+- Build the frontend into optimized static files
+- Serve the built files and API from a single server
 - Import initial data from Telleliste.csv (if the database is empty)
 
 The application will be available at `http://localhost:3000` (or your configured host/port).
@@ -94,16 +100,6 @@ export PORT=8080
 node server.js
 ```
 
-#### Development Mode
-
-For development with hot reloading:
-
-```bash
-# Windows (PowerShell) or Linux/macOS
-npm run dev
-```
-
-This will start the Vite development server with API proxy configuration matching your HOST/PORT settings.
 
 ## Project Structure
 
@@ -115,7 +111,8 @@ InventraSys/
 │   ├── App.svelte        # Main application component
 │   └── main.js           # Application entry point
 ├── public/                # Public static files
-├── server.js             # Express backend server
+├── server.js             # Express server with integrated Vite (dev) and static file serving (prod)
+├── vite.config.js        # Vite configuration
 └── inventory.db          # SQLite database
 ```
 
@@ -157,6 +154,5 @@ InventraSys/
   - SSE for real-time updates
 
 - **Backend**
-  - Express.js
+  - Express.js with integrated Vite middleware
   - SQLite (better-sqlite3)
-  - CORS for cross-origin support
