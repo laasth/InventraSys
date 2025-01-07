@@ -286,6 +286,7 @@
     font-size: 14px;
     transition: all 0.15s ease-in-out;
     background: transparent;
+    color: #212529;
   }
 
   input:focus {
