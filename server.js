@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
+import cors from 'cors';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,19 +36,67 @@ async function setupVite() {
 // Initialize Vite
 setupVite().catch(console.error);
 
+// Enable CORS
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Store connected clients
 let clients = [];
 
-// SSE endpoint
+// Helper function to get paginated and filtered data
+function getPaginatedData(page = 1, itemsPerPage = 25, searchQuery = '', sortBy = 'delenummer', sortOrder = 'ASC') {
+  const offset = (page - 1) * itemsPerPage;
+  
+  // Build search condition
+  const searchCondition = searchQuery 
+    ? `WHERE delenummer LIKE ? OR navn LIKE ? OR beskrivelse LIKE ? OR lokasjon LIKE ?`
+    : '';
+  const searchParams = searchQuery 
+    ? [`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`]
+    : [];
+
+  // Get total count
+  const countStmt = db.prepare(`
+    SELECT COUNT(*) as count 
+    FROM inventory 
+    ${searchCondition}
+  `);
+  const { count } = countStmt.get(...searchParams);
+
+  // Get paginated results
+  const stmt = db.prepare(`
+    SELECT * 
+    FROM inventory 
+    ${searchCondition}
+    ORDER BY ${sortBy} ${sortOrder}
+    LIMIT ? OFFSET ?
+  `);
+  
+  const items = stmt.all(...searchParams, itemsPerPage, offset);
+
+  return {
+    items,
+    pagination: {
+      currentPage: page,
+      itemsPerPage,
+      totalItems: count,
+      totalPages: Math.ceil(count / itemsPerPage)
+    }
+  };
+}
+
+// SSE endpoint for real-time updates
 app.get('/api/updates', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
   // Send initial data
-  const data = JSON.stringify(db.prepare('SELECT * FROM inventory').all());
+  const data = JSON.stringify({ type: 'update', count: db.prepare('SELECT COUNT(*) as count FROM inventory').get().count });
   res.write(`data: ${data}\n\n`);
 
   // Add client to list
@@ -64,9 +113,12 @@ app.get('/api/updates', (req, res) => {
   });
 });
 
-// Function to notify all clients
+// Function to notify all clients of updates
 function notifyClients() {
-  const data = JSON.stringify(db.prepare('SELECT * FROM inventory').all());
+  const data = JSON.stringify({ 
+    type: 'update',
+    count: db.prepare('SELECT COUNT(*) as count FROM inventory').get().count
+  });
   clients.forEach(client => {
     client.res.write(`data: ${data}\n\n`);
   });
@@ -117,7 +169,6 @@ function importCsvData() {
   }
 }
 
-
 // Create table if it doesn't exist and import data
 db.exec(`
   CREATE TABLE IF NOT EXISTS inventory (
@@ -132,10 +183,22 @@ db.exec(`
   )
 `);
 
-// Get all items
+// Get items with pagination
 app.get('/api/inventory', (req, res) => {
-  const items = db.prepare('SELECT * FROM inventory').all();
-  res.json(items);
+  const page = parseInt(req.query.page) || 1;
+  const itemsPerPage = parseInt(req.query.itemsPerPage) || 25;
+  const searchQuery = req.query.searchQuery || '';
+  const sortBy = req.query.sortBy || 'delenummer';
+  const sortOrder = (req.query.sortOrder || 'asc').toUpperCase();
+  
+  // Validate sort column to prevent SQL injection
+  const validColumns = ['delenummer', 'navn', 'beskrivelse', 'lokasjon', 'inn_pris', 'ut_pris', 'antall'];
+  if (!validColumns.includes(sortBy)) {
+    return res.status(400).json({ error: 'Invalid sort column' });
+  }
+
+  const result = getPaginatedData(page, itemsPerPage, searchQuery, sortBy, sortOrder);
+  res.json(result);
 });
 
 // Add new item
