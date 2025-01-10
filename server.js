@@ -1,6 +1,5 @@
 import express from 'express';
 import Database from 'better-sqlite3';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
@@ -124,51 +123,6 @@ function notifyClients() {
   });
 }
 
-// Function to import CSV data
-function importCsvData() {
-  try {
-    // Check if table is empty
-    const count = db.prepare('SELECT COUNT(*) as count FROM inventory').get();
-    if (count.count > 0) {
-      console.log('Database already contains data, skipping import');
-      return;
-    }
-
-    const csvContent = fs.readFileSync('Telleliste.csv', 'utf-8');
-    const lines = csvContent.split('\n');
-    
-    // Skip header row
-    const dataRows = lines.slice(1);
-    
-    const insertStmt = db.prepare(`
-      INSERT INTO inventory (delenummer, navn, beskrivelse, lokasjon, inn_pris, ut_pris, antall)
-      VALUES (@delenummer, @navn, @beskrivelse, @lokasjon, @inn_pris, @ut_pris, @antall)
-    `);
-
-    db.transaction(() => {
-      for (const row of dataRows) {
-        if (!row.trim()) continue; // Skip empty lines
-        
-        const [lokasjon, delenummer, navn, antall, inn_pris, ut_pris, beskrivelse] = row.split(',').map(field => field.trim());
-        
-        insertStmt.run({
-          delenummer: delenummer || '',
-          navn: navn?.replace(/^"|"$/g, '') || '', // Remove quotes if present
-          beskrivelse: beskrivelse || '',
-          lokasjon: lokasjon || '',
-          inn_pris: parseFloat(inn_pris) || 0,
-          ut_pris: parseFloat(ut_pris) || 0,
-          antall: parseInt(antall) || 0
-        });
-      }
-    })();
-
-    console.log('CSV data imported successfully');
-  } catch (error) {
-    console.error('Error importing CSV data:', error);
-  }
-}
-
 // Create table if it doesn't exist and import data
 db.exec(`
   CREATE TABLE IF NOT EXISTS inventory (
@@ -201,41 +155,133 @@ app.get('/api/inventory', (req, res) => {
   res.json(result);
 });
 
+// Validation helper functions
+function validateInventoryData(data) {
+  const errors = [];
+  
+  // Required fields
+  if (!data.delenummer || typeof data.delenummer !== 'string') errors.push('Invalid delenummer');
+  if (!data.navn || typeof data.navn !== 'string') errors.push('Invalid navn');
+  
+  // Optional fields with type validation
+  if (data.beskrivelse && typeof data.beskrivelse !== 'string') errors.push('Invalid beskrivelse');
+  if (data.lokasjon && typeof data.lokasjon !== 'string') errors.push('Invalid lokasjon');
+  
+  // Numeric fields
+  if (typeof data.inn_pris !== 'number' || isNaN(data.inn_pris)) errors.push('Invalid inn_pris');
+  if (typeof data.ut_pris !== 'number' || isNaN(data.ut_pris)) errors.push('Invalid ut_pris');
+  if (typeof data.antall !== 'number' || !Number.isInteger(data.antall)) errors.push('Invalid antall');
+  
+  return errors;
+}
+
+function validateId(id) {
+  const numId = parseInt(id);
+  return !isNaN(numId) && numId > 0 && Number.isInteger(numId);
+}
+
 // Add new item
 app.post('/api/inventory', (req, res) => {
-  const stmt = db.prepare(`
-    INSERT INTO inventory (delenummer, navn, beskrivelse, lokasjon, inn_pris, ut_pris, antall)
-    VALUES (@delenummer, @navn, @beskrivelse, @lokasjon, @inn_pris, @ut_pris, @antall)
-  `);
-  const result = stmt.run(req.body);
-  notifyClients();
-  res.json({ id: result.lastInsertRowid });
+  try {
+    const data = {
+      delenummer: String(req.body.delenummer || ''),
+      navn: String(req.body.navn || ''),
+      beskrivelse: String(req.body.beskrivelse || ''),
+      lokasjon: String(req.body.lokasjon || ''),
+      inn_pris: Number(req.body.inn_pris || 0),
+      ut_pris: Number(req.body.ut_pris || 0),
+      antall: parseInt(req.body.antall || 0)
+    };
+
+    const validationErrors = validateInventoryData(data);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ errors: validationErrors });
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO inventory (delenummer, navn, beskrivelse, lokasjon, inn_pris, ut_pris, antall)
+      VALUES (@delenummer, @navn, @beskrivelse, @lokasjon, @inn_pris, @ut_pris, @antall)
+    `);
+    
+    const result = stmt.run(data);
+    notifyClients();
+    res.json({ id: result.lastInsertRowid });
+  } catch (error) {
+    console.error('Error in POST /api/inventory:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Update item
 app.put('/api/inventory/:id', (req, res) => {
-  const stmt = db.prepare(`
-    UPDATE inventory 
-    SET delenummer = @delenummer,
-        navn = @navn,
-        beskrivelse = @beskrivelse,
-        lokasjon = @lokasjon,
-        inn_pris = @inn_pris,
-        ut_pris = @ut_pris,
-        antall = @antall
-    WHERE id = @id
-  `);
-  stmt.run({ ...req.body, id: req.params.id });
-  notifyClients();
-  res.json({ success: true });
+  try {
+    const id = req.params.id;
+    if (!validateId(id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    const data = {
+      id: parseInt(id),
+      delenummer: String(req.body.delenummer || ''),
+      navn: String(req.body.navn || ''),
+      beskrivelse: String(req.body.beskrivelse || ''),
+      lokasjon: String(req.body.lokasjon || ''),
+      inn_pris: Number(req.body.inn_pris || 0),
+      ut_pris: Number(req.body.ut_pris || 0),
+      antall: parseInt(req.body.antall || 0)
+    };
+
+    const validationErrors = validateInventoryData(data);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ errors: validationErrors });
+    }
+
+    const stmt = db.prepare(`
+      UPDATE inventory 
+      SET delenummer = @delenummer,
+          navn = @navn,
+          beskrivelse = @beskrivelse,
+          lokasjon = @lokasjon,
+          inn_pris = @inn_pris,
+          ut_pris = @ut_pris,
+          antall = @antall
+      WHERE id = @id
+    `);
+    
+    const result = stmt.run(data);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    
+    notifyClients();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in PUT /api/inventory/:id:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Delete item
 app.delete('/api/inventory/:id', (req, res) => {
-  const stmt = db.prepare('DELETE FROM inventory WHERE id = ?');
-  stmt.run(req.params.id);
-  notifyClients();
-  res.json({ success: true });
+  try {
+    const id = req.params.id;
+    if (!validateId(id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    const stmt = db.prepare('DELETE FROM inventory WHERE id = ?');
+    const result = stmt.run(parseInt(id));
+    
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    
+    notifyClients();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in DELETE /api/inventory/:id:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Handle non-API routes
@@ -251,5 +297,4 @@ app.use((req, res, next) => {
 
 app.listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);
-  importCsvData(); // Import CSV data when server starts
 });
