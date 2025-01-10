@@ -47,12 +47,12 @@ app.use(express.json());
 let clients = [];
 
 // Helper function to get paginated and filtered data
-function getPaginatedData(page = 1, itemsPerPage = 25, searchQuery = '', sortBy = 'delenummer', sortOrder = 'ASC') {
+function getPaginatedData(page = 1, itemsPerPage = 25, searchQuery = '', sortBy = 'part_number', sortOrder = 'ASC') {
   const offset = (page - 1) * itemsPerPage;
   
   // Build search condition
   const searchCondition = searchQuery 
-    ? `WHERE delenummer LIKE ? OR navn LIKE ? OR beskrivelse LIKE ? OR lokasjon LIKE ?`
+    ? `WHERE part_number LIKE ? OR name LIKE ? OR description LIKE ? OR location LIKE ?`
     : '';
   const searchParams = searchQuery 
     ? [`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`]
@@ -127,13 +127,13 @@ function notifyClients() {
 db.exec(`
   CREATE TABLE IF NOT EXISTS inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    delenummer TEXT NOT NULL,
-    navn TEXT NOT NULL,
-    beskrivelse TEXT,
-    lokasjon TEXT,
-    inn_pris REAL,
-    ut_pris REAL,
-    antall INTEGER DEFAULT 0
+    part_number TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    location TEXT,
+    purchase_price REAL,
+    sale_price REAL,
+    quantity INTEGER DEFAULT 0
   )
 `);
 
@@ -142,11 +142,11 @@ app.get('/api/inventory', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const itemsPerPage = parseInt(req.query.itemsPerPage) || 25;
   const searchQuery = req.query.searchQuery || '';
-  const sortBy = req.query.sortBy || 'delenummer';
+  const sortBy = req.query.sortBy || 'part_number';
   const sortOrder = (req.query.sortOrder || 'asc').toUpperCase();
   
   // Validate sort column to prevent SQL injection
-  const validColumns = ['delenummer', 'navn', 'beskrivelse', 'lokasjon', 'inn_pris', 'ut_pris', 'antall'];
+  const validColumns = ['part_number', 'name', 'description', 'location', 'purchase_price', 'sale_price', 'quantity'];
   if (!validColumns.includes(sortBy)) {
     return res.status(400).json({ error: 'Invalid sort column' });
   }
@@ -160,17 +160,17 @@ function validateInventoryData(data) {
   const errors = [];
   
   // Required fields
-  if (!data.delenummer || typeof data.delenummer !== 'string') errors.push('Invalid delenummer');
-  if (!data.navn || typeof data.navn !== 'string') errors.push('Invalid navn');
+  if (!data.part_number || typeof data.part_number !== 'string') errors.push('Invalid part_number');
+  if (!data.name || typeof data.name !== 'string') errors.push('Invalid name');
   
   // Optional fields with type validation
-  if (data.beskrivelse && typeof data.beskrivelse !== 'string') errors.push('Invalid beskrivelse');
-  if (data.lokasjon && typeof data.lokasjon !== 'string') errors.push('Invalid lokasjon');
+  if (data.description && typeof data.description !== 'string') errors.push('Invalid description');
+  if (data.location && typeof data.location !== 'string') errors.push('Invalid location');
   
   // Numeric fields
-  if (typeof data.inn_pris !== 'number' || isNaN(data.inn_pris)) errors.push('Invalid inn_pris');
-  if (typeof data.ut_pris !== 'number' || isNaN(data.ut_pris)) errors.push('Invalid ut_pris');
-  if (typeof data.antall !== 'number' || !Number.isInteger(data.antall)) errors.push('Invalid antall');
+  if (typeof data.purchase_price !== 'number' || isNaN(data.purchase_price)) errors.push('Invalid purchase_price');
+  if (typeof data.sale_price !== 'number' || isNaN(data.sale_price)) errors.push('Invalid sale_price');
+  if (typeof data.quantity !== 'number' || !Number.isInteger(data.quantity)) errors.push('Invalid quantity');
   
   return errors;
 }
@@ -184,13 +184,13 @@ function validateId(id) {
 app.post('/api/inventory', (req, res) => {
   try {
     const data = {
-      delenummer: String(req.body.delenummer || ''),
-      navn: String(req.body.navn || ''),
-      beskrivelse: String(req.body.beskrivelse || ''),
-      lokasjon: String(req.body.lokasjon || ''),
-      inn_pris: Number(req.body.inn_pris || 0),
-      ut_pris: Number(req.body.ut_pris || 0),
-      antall: parseInt(req.body.antall || 0)
+      part_number: String(req.body.part_number || ''),
+      name: String(req.body.name || ''),
+      description: String(req.body.description || ''),
+      location: String(req.body.location || ''),
+      purchase_price: Number(req.body.purchase_price || 0),
+      sale_price: Number(req.body.sale_price || 0),
+      quantity: parseInt(req.body.quantity || 0)
     };
 
     const validationErrors = validateInventoryData(data);
@@ -199,8 +199,8 @@ app.post('/api/inventory', (req, res) => {
     }
 
     const stmt = db.prepare(`
-      INSERT INTO inventory (delenummer, navn, beskrivelse, lokasjon, inn_pris, ut_pris, antall)
-      VALUES (@delenummer, @navn, @beskrivelse, @lokasjon, @inn_pris, @ut_pris, @antall)
+      INSERT INTO inventory (part_number, name, description, location, purchase_price, sale_price, quantity)
+      VALUES (@part_number, @name, @description, @location, @purchase_price, @sale_price, @quantity)
     `);
     
     const result = stmt.run(data);
@@ -222,13 +222,13 @@ app.put('/api/inventory/:id', (req, res) => {
 
     const data = {
       id: parseInt(id),
-      delenummer: String(req.body.delenummer || ''),
-      navn: String(req.body.navn || ''),
-      beskrivelse: String(req.body.beskrivelse || ''),
-      lokasjon: String(req.body.lokasjon || ''),
-      inn_pris: Number(req.body.inn_pris || 0),
-      ut_pris: Number(req.body.ut_pris || 0),
-      antall: parseInt(req.body.antall || 0)
+      part_number: String(req.body.part_number || ''),
+      name: String(req.body.name || ''),
+      description: String(req.body.description || ''),
+      location: String(req.body.location || ''),
+      purchase_price: Number(req.body.purchase_price || 0),
+      sale_price: Number(req.body.sale_price || 0),
+      quantity: parseInt(req.body.quantity || 0)
     };
 
     const validationErrors = validateInventoryData(data);
@@ -238,13 +238,13 @@ app.put('/api/inventory/:id', (req, res) => {
 
     const stmt = db.prepare(`
       UPDATE inventory 
-      SET delenummer = @delenummer,
-          navn = @navn,
-          beskrivelse = @beskrivelse,
-          lokasjon = @lokasjon,
-          inn_pris = @inn_pris,
-          ut_pris = @ut_pris,
-          antall = @antall
+      SET part_number = @part_number,
+          name = @name,
+          description = @description,
+          location = @location,
+          purchase_price = @purchase_price,
+          sale_price = @sale_price,
+          quantity = @quantity
       WHERE id = @id
     `);
     

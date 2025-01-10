@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { currentPage, paginationStore, filterStore, apiConfig } from './lib/stores.js';
+  import { currentPage, paginationStore, filterStore, apiConfig, languageStore } from './lib/stores.js';
+  import { t, availableLanguages } from './lib/i18n/index.js';
   import ManageInventory from './lib/ManageInventory.svelte';
 
   let items = [];
@@ -114,11 +115,11 @@
     if (!selectedItem) return;
     
     try {
-      const newQuantity = Math.max(0, selectedItem.antall - removeQuantity);
+      const newQuantity = Math.max(0, selectedItem.quantity - removeQuantity);
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${selectedItem.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...selectedItem, antall: newQuantity })
+        body: JSON.stringify({ ...selectedItem, quantity: newQuantity })
       });
       
       if (response.ok) {
@@ -148,24 +149,32 @@
 {:else}
   <main>
     <div class="header">
-      <h2>Lagerliste</h2>
+      <h2>{$t('header.listTitle')}</h2>
       <div class="header-controls">
+        <select 
+          bind:value={$languageStore}
+          class="language-select"
+        >
+          {#each availableLanguages as lang}
+            <option value={lang.code}>{lang.name}</option>
+          {/each}
+        </select>
         <div class="search-container">
           <input 
             type="text" 
             bind:value={$filterStore.searchInput} 
             on:input={handleSearch}
-            placeholder="Søk etter delenummer eller navn..."
+            placeholder={$t('header.search')}
             class="search-input"
           />
         </div>
-        <button class="manage-button" on:click={goToManage}>Administrer Lager</button>
+        <button class="manage-button" on:click={goToManage}>{$t('header.manageInventory')}</button>
       </div>
     </div>
 
     <div class="controls">
       <span class="pagination-info">
-        Viser {startItem}-{endItem} av {totalItems} varer
+        {$t('pagination.showing')} {startItem}-{endItem} {$t('pagination.of')} {totalItems} {$t('pagination.items')}
       </span>
       <div class="pagination-controls">
         <button
@@ -201,85 +210,85 @@
       <div class="table-header">
         <button 
           class="header-cell sortable" 
-          on:click={() => handleSort('lokasjon')}
-          on:keydown={e => e.key === 'Enter' && handleSort('lokasjon')}
+          on:click={() => handleSort('location')}
+          on:keydown={e => e.key === 'Enter' && handleSort('location')}
           role="columnheader"
-          aria-sort={sortBy === 'lokasjon' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={sortBy === 'location' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
-          <span class="header-text">Plassering</span>
-          {#if sortBy === 'lokasjon'}
+          <span class="header-text">{$t('columns.location')}</span>
+          {#if sortBy === 'location'}
             <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
           {/if}
         </button>
         <button 
           class="header-cell sortable" 
-          on:click={() => handleSort('delenummer')}
-          on:keydown={e => e.key === 'Enter' && handleSort('delenummer')}
+          on:click={() => handleSort('part_number')}
+          on:keydown={e => e.key === 'Enter' && handleSort('part_number')}
           role="columnheader"
-          aria-sort={sortBy === 'delenummer' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={sortBy === 'part_number' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
-          <span class="header-text">Delenummer</span>
-          {#if sortBy === 'delenummer'}
+          <span class="header-text">{$t('columns.partNumber')}</span>
+          {#if sortBy === 'part_number'}
             <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
           {/if}
         </button>
         <button 
           class="header-cell sortable" 
-          on:click={() => handleSort('navn')}
-          on:keydown={e => e.key === 'Enter' && handleSort('navn')}
+          on:click={() => handleSort('name')}
+          on:keydown={e => e.key === 'Enter' && handleSort('name')}
           role="columnheader"
-          aria-sort={sortBy === 'navn' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={sortBy === 'name' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
-          <span class="header-text">Navn</span>
-          {#if sortBy === 'navn'}
+          <span class="header-text">{$t('columns.name')}</span>
+          {#if sortBy === 'name'}
             <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
           {/if}
         </button>
         <button 
           class="header-cell sortable" 
-          on:click={() => handleSort('beskrivelse')}
-          on:keydown={e => e.key === 'Enter' && handleSort('beskrivelse')}
+          on:click={() => handleSort('description')}
+          on:keydown={e => e.key === 'Enter' && handleSort('description')}
           role="columnheader"
-          aria-sort={sortBy === 'beskrivelse' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={sortBy === 'description' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
-          <span class="header-text">Beskrivelse</span>
-          {#if sortBy === 'beskrivelse'}
+          <span class="header-text">{$t('columns.description')}</span>
+          {#if sortBy === 'description'}
             <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
           {/if}
         </button>
         <button 
           class="header-cell sortable" 
-          on:click={() => handleSort('inn_pris')}
-          on:keydown={e => e.key === 'Enter' && handleSort('inn_pris')}
+          on:click={() => handleSort('purchase_price')}
+          on:keydown={e => e.key === 'Enter' && handleSort('purchase_price')}
           role="columnheader"
-          aria-sort={sortBy === 'inn_pris' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={sortBy === 'purchase_price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
-          <span class="header-text">Innkjøpspris</span>
-          {#if sortBy === 'inn_pris'}
+          <span class="header-text">{$t('columns.purchasePrice')}</span>
+          {#if sortBy === 'purchase_price'}
             <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
           {/if}
         </button>
         <button 
           class="header-cell sortable" 
-          on:click={() => handleSort('ut_pris')}
-          on:keydown={e => e.key === 'Enter' && handleSort('ut_pris')}
+          on:click={() => handleSort('sale_price')}
+          on:keydown={e => e.key === 'Enter' && handleSort('sale_price')}
           role="columnheader"
-          aria-sort={sortBy === 'ut_pris' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={sortBy === 'sale_price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
-          <span class="header-text">Utsalgspris</span>
-          {#if sortBy === 'ut_pris'}
+          <span class="header-text">{$t('columns.salePrice')}</span>
+          {#if sortBy === 'sale_price'}
             <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
           {/if}
         </button>
         <button 
           class="header-cell sortable" 
-          on:click={() => handleSort('antall')}
-          on:keydown={e => e.key === 'Enter' && handleSort('antall')}
+          on:click={() => handleSort('quantity')}
+          on:keydown={e => e.key === 'Enter' && handleSort('quantity')}
           role="columnheader"
-          aria-sort={sortBy === 'antall' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+          aria-sort={sortBy === 'quantity' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
         >
-          <span class="header-text">Antall</span>
-          {#if sortBy === 'antall'}
+          <span class="header-text">{$t('columns.quantity')}</span>
+          {#if sortBy === 'quantity'}
             <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
           {/if}
         </button>
@@ -288,15 +297,15 @@
       <!-- Existing Items -->
       {#each items as item}
         <div class="table-row">
-          <div class="table-cell">{item.lokasjon}</div>
-          <div class="table-cell">{item.delenummer}</div>
-          <div class="table-cell">{item.navn}</div>
-          <div class="table-cell">{item.beskrivelse}</div>
-          <div class="table-cell">{item.inn_pris?.toFixed(2)}</div>
-          <div class="table-cell">{item.ut_pris?.toFixed(2)}</div>
+          <div class="table-cell">{item.location}</div>
+          <div class="table-cell">{item.part_number}</div>
+          <div class="table-cell">{item.name}</div>
+          <div class="table-cell">{item.description}</div>
+          <div class="table-cell">{item.purchase_price?.toFixed(2)}</div>
+          <div class="table-cell">{item.sale_price?.toFixed(2)}</div>
           <div class="table-cell quantity-cell">
             <button class="quantity-btn minus" on:click={() => showRemoveDialog(item)}>-</button>
-            <span class="quantity">{item.antall}</span>
+            <span class="quantity">{item.quantity}</span>
           </div>
         </div>
       {/each}
@@ -307,20 +316,20 @@
 {#if showDialog}
   <div class="dialog-overlay">
     <div class="dialog">
-      <h3>Fjern fra lager</h3>
-      <p>Hvor mange enheter vil du fjerne fra {selectedItem?.navn}?</p>
+      <h3>{$t('dialog.removeFromInventory')}</h3>
+      <p>{$t('dialog.removeUnits').replace('{name}', selectedItem?.name)}</p>
       <div class="dialog-content">
         <input 
           type="number" 
           bind:value={removeQuantity} 
           min="1" 
-          max={selectedItem?.antall} 
+          max={selectedItem?.quantity} 
           class="quantity-input"
         />
       </div>
       <div class="dialog-buttons">
-        <button class="cancel-btn" on:click={cancelRemove}>Avbryt</button>
-        <button class="confirm-btn" on:click={confirmRemove}>Bekreft</button>
+        <button class="cancel-btn" on:click={cancelRemove}>{$t('dialog.cancel')}</button>
+        <button class="confirm-btn" on:click={confirmRemove}>{$t('dialog.confirm')}</button>
       </div>
     </div>
   </div>
@@ -338,6 +347,22 @@
     display: flex;
     gap: 16px;
     align-items: center;
+  }
+
+  .language-select {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #f8f9fa;
+    color: #212529;
+    cursor: pointer;
+  }
+
+  .language-select:focus {
+    outline: none;
+    border-color: #646cff;
+    box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
   }
 
   .controls {

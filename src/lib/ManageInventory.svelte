@@ -1,16 +1,17 @@
 <script>
-  import { currentPage, paginationStore, filterStore, apiConfig } from './stores.js';
+  import { currentPage, paginationStore, filterStore, apiConfig, languageStore } from './stores.js';
+  import { t, availableLanguages } from './i18n/index.js';
   import { onMount, onDestroy } from 'svelte';
 
   let items = [];
   let newItem = {
-    delenummer: '',
-    navn: '',
-    beskrivelse: '',
-    lokasjon: '',
-    inn_pris: '',
-    ut_pris: '',
-    antall: ''
+    part_number: '',
+    name: '',
+    description: '',
+    location: '',
+    purchase_price: '',
+    sale_price: '',
+    quantity: ''
   };
   let editing = null;
   let searchTimeout;
@@ -117,20 +118,20 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newItem,
-          inn_pris: parseFloat(newItem.inn_pris),
-          ut_pris: parseFloat(newItem.ut_pris),
-          antall: parseInt(newItem.antall)
+          purchase_price: parseFloat(newItem.purchase_price),
+          sale_price: parseFloat(newItem.sale_price),
+          quantity: parseInt(newItem.quantity)
         })
       });
       if (response.ok) {
         newItem = {
-          delenummer: '',
-          navn: '',
-          beskrivelse: '',
-          lokasjon: '',
-          inn_pris: '',
-          ut_pris: '',
-          antall: ''
+          part_number: '',
+          name: '',
+          description: '',
+          location: '',
+          purchase_price: '',
+          sale_price: '',
+          quantity: ''
         };
       }
     } catch (error) {
@@ -154,7 +155,7 @@
   }
 
   async function deleteItem(id) {
-    if (confirm('Er du sikker på at du vil slette denne varen?')) {
+    if (confirm($t('confirmations.deleteItem'))) {
       try {
         await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${id}`, {
           method: 'DELETE'
@@ -180,25 +181,33 @@
 
 <main>
   <div class="header">
-    <h2>Administrer Lager</h2>
+    <h2>{$t('header.title')}</h2>
     <div class="header-controls">
+      <select 
+        bind:value={$languageStore}
+        class="language-select"
+      >
+        {#each availableLanguages as lang}
+          <option value={lang.code}>{lang.name}</option>
+        {/each}
+      </select>
       <div class="search-container">
         <input 
           type="text" 
           bind:value={$filterStore.searchInput} 
           on:input={handleSearch}
-          placeholder="Søk etter delenummer eller navn..."
+          placeholder={$t('header.search')}
           class="search-input"
         />
       </div>
-      <button class="back-button" on:click={goToList}>Tilbake til Liste</button>
+      <button class="back-button" on:click={goToList}>{$t('header.backToList')}</button>
     </div>
   </div>
 
   <div class="controls">
     <div class="pagination">
       <span class="pagination-info">
-        Viser {startItem}-{endItem} av {totalItems} varer
+        {$t('pagination.showing')} {startItem}-{endItem} {$t('pagination.of')} {totalItems} {$t('pagination.items')}
       </span>
       <div class="pagination-controls">
         <button
@@ -229,118 +238,118 @@
     <div class="table-header">
       <button 
         class="header-cell sortable" 
-        on:click={() => handleSort('lokasjon')}
-        on:keydown={e => e.key === 'Enter' && handleSort('lokasjon')}
+        on:click={() => handleSort('location')}
+        on:keydown={e => e.key === 'Enter' && handleSort('location')}
         role="columnheader"
-        aria-sort={sortBy === 'lokasjon' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        aria-sort={sortBy === 'location' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
-        <span class="header-text">Plassering</span>
-        {#if sortBy === 'lokasjon'}
+        <span class="header-text">{$t('columns.location')}</span>
+        {#if sortBy === 'location'}
           <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
         {/if}
       </button>
       <button 
         class="header-cell sortable" 
-        on:click={() => handleSort('delenummer')}
-        on:keydown={e => e.key === 'Enter' && handleSort('delenummer')}
+        on:click={() => handleSort('part_number')}
+        on:keydown={e => e.key === 'Enter' && handleSort('part_number')}
         role="columnheader"
-        aria-sort={sortBy === 'delenummer' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        aria-sort={sortBy === 'part_number' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
-        <span class="header-text">Delenummer</span>
-        {#if sortBy === 'delenummer'}
+        <span class="header-text">{$t('columns.partNumber')}</span>
+        {#if sortBy === 'part_number'}
           <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
         {/if}
       </button>
       <button 
         class="header-cell sortable" 
-        on:click={() => handleSort('navn')}
-        on:keydown={e => e.key === 'Enter' && handleSort('navn')}
+        on:click={() => handleSort('name')}
+        on:keydown={e => e.key === 'Enter' && handleSort('name')}
         role="columnheader"
-        aria-sort={sortBy === 'navn' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        aria-sort={sortBy === 'name' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
-        <span class="header-text">Navn</span>
-        {#if sortBy === 'navn'}
+        <span class="header-text">{$t('columns.name')}</span>
+        {#if sortBy === 'name'}
           <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
         {/if}
       </button>
       <button 
         class="header-cell sortable" 
-        on:click={() => handleSort('beskrivelse')}
-        on:keydown={e => e.key === 'Enter' && handleSort('beskrivelse')}
+        on:click={() => handleSort('description')}
+        on:keydown={e => e.key === 'Enter' && handleSort('description')}
         role="columnheader"
-        aria-sort={sortBy === 'beskrivelse' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        aria-sort={sortBy === 'description' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
-        <span class="header-text">Beskrivelse</span>
-        {#if sortBy === 'beskrivelse'}
+        <span class="header-text">{$t('columns.description')}</span>
+        {#if sortBy === 'description'}
           <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
         {/if}
       </button>
       <button 
         class="header-cell sortable" 
-        on:click={() => handleSort('inn_pris')}
-        on:keydown={e => e.key === 'Enter' && handleSort('inn_pris')}
+        on:click={() => handleSort('purchase_price')}
+        on:keydown={e => e.key === 'Enter' && handleSort('purchase_price')}
         role="columnheader"
-        aria-sort={sortBy === 'inn_pris' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        aria-sort={sortBy === 'purchase_price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
-        <span class="header-text">Innkjøpspris</span>
-        {#if sortBy === 'inn_pris'}
+        <span class="header-text">{$t('columns.purchasePrice')}</span>
+        {#if sortBy === 'purchase_price'}
           <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
         {/if}
       </button>
       <button 
         class="header-cell sortable" 
-        on:click={() => handleSort('ut_pris')}
-        on:keydown={e => e.key === 'Enter' && handleSort('ut_pris')}
+        on:click={() => handleSort('sale_price')}
+        on:keydown={e => e.key === 'Enter' && handleSort('sale_price')}
         role="columnheader"
-        aria-sort={sortBy === 'ut_pris' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        aria-sort={sortBy === 'sale_price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
-        <span class="header-text">Utsalgspris</span>
-        {#if sortBy === 'ut_pris'}
+        <span class="header-text">{$t('columns.salePrice')}</span>
+        {#if sortBy === 'sale_price'}
           <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
         {/if}
       </button>
       <button 
         class="header-cell sortable" 
-        on:click={() => handleSort('antall')}
-        on:keydown={e => e.key === 'Enter' && handleSort('antall')}
+        on:click={() => handleSort('quantity')}
+        on:keydown={e => e.key === 'Enter' && handleSort('quantity')}
         role="columnheader"
-        aria-sort={sortBy === 'antall' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        aria-sort={sortBy === 'quantity' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
       >
-        <span class="header-text">Antall</span>
-        {#if sortBy === 'antall'}
+        <span class="header-text">{$t('columns.quantity')}</span>
+        {#if sortBy === 'quantity'}
           <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
         {/if}
       </button>
       <div class="header-cell">
-        <span class="header-text">Handlinger</span>
+        <span class="header-text">{$t('columns.actions')}</span>
       </div>
     </div>
 
     <!-- New Item Row -->
     <div class="table-row new-row">
       <div class="table-cell">
-        <input bind:value={newItem.lokasjon} placeholder="Plassering" />
+        <input bind:value={newItem.location} placeholder={$t('columns.location')} />
       </div>
       <div class="table-cell">
-        <input bind:value={newItem.delenummer} placeholder="Delenummer" />
+        <input bind:value={newItem.part_number} placeholder={$t('columns.partNumber')} />
       </div>
       <div class="table-cell">
-        <input bind:value={newItem.navn} placeholder="Navn" />
+        <input bind:value={newItem.name} placeholder={$t('columns.name')} />
       </div>
       <div class="table-cell">
-        <input bind:value={newItem.beskrivelse} placeholder="Beskrivelse" />
+        <input bind:value={newItem.description} placeholder={$t('columns.description')} />
       </div>
       <div class="table-cell">
-        <input type="number" step="0.01" bind:value={newItem.inn_pris} placeholder="Innkjøpspris" />
+        <input type="number" step="0.01" bind:value={newItem.purchase_price} placeholder={$t('columns.purchasePrice')} />
       </div>
       <div class="table-cell">
-        <input type="number" step="0.01" bind:value={newItem.ut_pris} placeholder="Utsalgspris" />
+        <input type="number" step="0.01" bind:value={newItem.sale_price} placeholder={$t('columns.salePrice')} />
       </div>
       <div class="table-cell">
-        <input type="number" bind:value={newItem.antall} placeholder="Antall" />
+        <input type="number" bind:value={newItem.quantity} placeholder={$t('columns.quantity')} />
       </div>
       <div class="table-cell">
-        <button class="add-button" on:click={addItem}>Legg til</button>
+        <button class="add-button" on:click={addItem}>{$t('actions.add')}</button>
       </div>
     </div>
 
@@ -355,41 +364,41 @@
       <div class="table-row">
         {#if editing && editing.id === item.id}
           <div class="table-cell">
-            <input bind:value={editing.lokasjon} />
+            <input bind:value={editing.location} />
           </div>
           <div class="table-cell">
-            <input bind:value={editing.delenummer} />
+            <input bind:value={editing.part_number} />
           </div>
           <div class="table-cell">
-            <input bind:value={editing.navn} />
+            <input bind:value={editing.name} />
           </div>
           <div class="table-cell">
-            <input bind:value={editing.beskrivelse} />
+            <input bind:value={editing.description} />
           </div>
           <div class="table-cell">
-            <input type="number" step="0.01" bind:value={editing.inn_pris} />
+            <input type="number" step="0.01" bind:value={editing.purchase_price} />
           </div>
           <div class="table-cell">
-            <input type="number" step="0.01" bind:value={editing.ut_pris} />
+            <input type="number" step="0.01" bind:value={editing.sale_price} />
           </div>
           <div class="table-cell">
-            <input type="number" bind:value={editing.antall} />
+            <input type="number" bind:value={editing.quantity} />
           </div>
           <div class="table-cell actions">
-            <button on:click={() => updateItem(editing)}>Lagre</button>
-            <button on:click={cancelEdit}>Avbryt</button>
+            <button on:click={() => updateItem(editing)}>{$t('actions.save')}</button>
+            <button on:click={cancelEdit}>{$t('actions.cancel')}</button>
           </div>
         {:else}
-          <div class="table-cell">{item.lokasjon}</div>
-          <div class="table-cell">{item.delenummer}</div>
-          <div class="table-cell">{item.navn}</div>
-          <div class="table-cell">{item.beskrivelse}</div>
-          <div class="table-cell">{item.inn_pris?.toFixed(2)}</div>
-          <div class="table-cell">{item.ut_pris?.toFixed(2)}</div>
-          <div class="table-cell">{item.antall}</div>
+          <div class="table-cell">{item.location}</div>
+          <div class="table-cell">{item.part_number}</div>
+          <div class="table-cell">{item.name}</div>
+          <div class="table-cell">{item.description}</div>
+          <div class="table-cell">{item.purchase_price?.toFixed(2)}</div>
+          <div class="table-cell">{item.sale_price?.toFixed(2)}</div>
+          <div class="table-cell">{item.quantity}</div>
           <div class="table-cell actions">
-            <button on:click={() => startEdit(item)}>Rediger</button>
-            <button on:click={() => deleteItem(item.id)}>Slett</button>
+            <button on:click={() => startEdit(item)}>{$t('actions.edit')}</button>
+            <button on:click={() => deleteItem(item.id)}>{$t('actions.delete')}</button>
           </div>
         {/if}
       </div>
@@ -409,6 +418,22 @@
     display: flex;
     gap: 16px;
     align-items: center;
+  }
+
+  .language-select {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #f8f9fa;
+    color: #212529;
+    cursor: pointer;
+  }
+
+  .language-select:focus {
+    outline: none;
+    border-color: #646cff;
+    box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
   }
 
   .search-container {

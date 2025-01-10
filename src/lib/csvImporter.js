@@ -18,20 +18,20 @@ function importCsvData(dbPath, csvPath) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS inventory (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      delenummer TEXT NOT NULL,
-      navn TEXT NOT NULL,
-      beskrivelse TEXT,
-      lokasjon TEXT,
-      inn_pris REAL,
-      ut_pris REAL,
-      antall INTEGER DEFAULT 0
+      part_number TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      location TEXT,
+      purchase_price REAL,
+      sale_price REAL,
+      quantity INTEGER DEFAULT 0
     )
   `);
 
   try {
     // Check if table is empty
-    const count = db.prepare('SELECT COUNT(*) as count FROM inventory').get();
-    if (count.count > 0) {
+    const result = db.prepare('SELECT COUNT(*) as count FROM inventory').get();
+    if (result && result.count > 0) {
       console.log('Database already contains data, skipping import');
       return;
     }
@@ -43,24 +43,24 @@ function importCsvData(dbPath, csvPath) {
     const dataRows = lines.slice(1);
     
     const insertStmt = db.prepare(`
-      INSERT INTO inventory (delenummer, navn, beskrivelse, lokasjon, inn_pris, ut_pris, antall)
-      VALUES (@delenummer, @navn, @beskrivelse, @lokasjon, @inn_pris, @ut_pris, @antall)
+      INSERT INTO inventory (part_number, name, description, location, purchase_price, sale_price, quantity)
+      VALUES (@part_number, @name, @description, @location, @purchase_price, @sale_price, @quantity)
     `);
 
     db.transaction(() => {
       for (const row of dataRows) {
         if (!row.trim()) continue; // Skip empty lines
         
-        const [lokasjon, delenummer, navn, antall, inn_pris, ut_pris, beskrivelse] = row.split(',').map(field => field.trim());
+        const [location, part_number, name, quantity, purchase_price, sale_price, description] = row.split(',').map(field => field.trim());
         
         insertStmt.run({
-          delenummer: delenummer || '',
-          navn: navn?.replace(/^"|"$/g, '') || '', // Remove quotes if present
-          beskrivelse: beskrivelse || '',
-          lokasjon: lokasjon || '',
-          inn_pris: parseFloat(inn_pris) || 0,
-          ut_pris: parseFloat(ut_pris) || 0,
-          antall: parseInt(antall) || 0
+          part_number: part_number || '',
+          name: name?.replace(/^"|"$/g, '') || '', // Remove quotes if present
+          description: description || '',
+          location: location || '',
+          purchase_price: parseFloat(purchase_price) || 0,
+          sale_price: parseFloat(sale_price) || 0,
+          quantity: parseInt(quantity) || 0
         });
       }
     })();
