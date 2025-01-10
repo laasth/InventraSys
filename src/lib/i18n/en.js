@@ -44,7 +44,10 @@ export default {
     invalidQuantity: 'Please enter a valid quantity',
     noItems: 'No items to count',
     items: 'items',
-    lastCounted: 'Last counted'
+    lastCounted: 'Last counted',
+    delete: 'Delete',
+    confirmDelete: 'Are you sure you want to delete {name}?',
+    deleted: 'Item deleted successfully'
   },
   confirmations: {
     deleteItem: 'Are you sure you want to delete this item?'

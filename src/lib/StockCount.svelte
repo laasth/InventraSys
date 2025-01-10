@@ -17,13 +17,51 @@
   async function fetchItems() {
     try {
       loading = true;
-      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory`);
+      // Request all items and sort by last_stock_count (oldest first)
+      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?itemsPerPage=10000`);
       const data = await response.json();
-      items = data.items;
+      // Sort items: null last_stock_count first, then by oldest date
+      items = data.items.sort((a, b) => {
+        // If both are null or both have dates, compare them
+        if ((!a.last_stock_count && !b.last_stock_count) || (a.last_stock_count && b.last_stock_count)) {
+          return (a.last_stock_count || '').localeCompare(b.last_stock_count || '');
+        }
+        // If only one is null, null should come first
+        return a.last_stock_count ? 1 : -1;
+      });
     } catch (error) {
       console.error('Error fetching items:', error);
     } finally {
       loading = false;
+    }
+  }
+
+  async function deleteCurrentItem() {
+    if (!items[currentItemIndex]) return;
+    
+    const item = items[currentItemIndex];
+    
+    if (!confirm($t('stockCount.confirmDelete', { values: { name: item.name } }))) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        message = $t('stockCount.deleted');
+        // Remove item from array
+        items = items.filter((_, index) => index !== currentItemIndex);
+        // Adjust current index if we're at the end
+        if (currentItemIndex >= items.length) {
+          currentItemIndex = Math.max(0, items.length - 1);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      message = $t('stockCount.error');
     }
   }
 
@@ -119,6 +157,9 @@
           </button>
           <button class="update-button" on:click={updateStockCount}>
             {$t('stockCount.update')}
+          </button>
+          <button class="delete-button" on:click={deleteCurrentItem}>
+            {$t('stockCount.delete')}
           </button>
         </div>
 
@@ -246,6 +287,14 @@
 
   .confirm-button:hover {
     background: linear-gradient(180deg, #218838 0%, #1e7e34 100%);
+  }
+
+  .delete-button {
+    background: linear-gradient(180deg, #dc3545 0%, #c82333 100%);
+  }
+
+  .delete-button:hover {
+    background: linear-gradient(180deg, #c82333 0%, #bd2130 100%);
   }
 
   .update-button {

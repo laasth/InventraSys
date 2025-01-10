@@ -44,7 +44,10 @@ export default {
     invalidQuantity: 'Vennligst angi et gyldig antall',
     noItems: 'Ingen varer å telle',
     items: 'varer',
-    lastCounted: 'Sist opptalt'
+    lastCounted: 'Sist opptalt',
+    delete: 'Slett',
+    confirmDelete: 'Er du sikker på at du vil slette {name}?',
+    deleted: 'Varen ble slettet'
   },
   confirmations: {
     deleteItem: 'Er du sikker på at du vil slette denne varen?'
