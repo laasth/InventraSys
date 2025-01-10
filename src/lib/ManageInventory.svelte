@@ -16,7 +16,25 @@
   let editing = null;
   let searchTimeout;
   let loading = false;
+  let showAddDialog = false;
   let eventSource;
+
+  function openAddDialog() {
+    showAddDialog = true;
+  }
+
+  function closeAddDialog() {
+    showAddDialog = false;
+    newItem = {
+      part_number: '',
+      name: '',
+      description: '',
+      location: '',
+      purchase_price: '',
+      sale_price: '',
+      quantity: ''
+    };
+  }
 
   // Subscribe to stores
   $: ({ currentPage: pageNum, itemsPerPage, totalItems, totalPages } = $paginationStore);
@@ -177,6 +195,50 @@
   function goToList() {
     currentPage.set('list');
   }
+
+  function formatDateTime(dateStr) {
+    if (!dateStr) return '';
+    
+    console.log('Raw date string:', dateStr);
+    
+    // SQLite datetime format: YYYY-MM-DD HH:MM:SS
+    // Parse manually to ensure consistent behavior
+    const [datePart, timePart] = dateStr.split(' ');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute, second] = timePart.split(':').map(Number);
+    
+    // Create date in UTC
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    const now = new Date();
+    
+    console.log('Date objects:', {
+      date: date.toISOString(),
+      now: now.toISOString()
+    });
+    
+    // Calculate time difference in milliseconds
+    const diffMs = now.getTime() - date.getTime();
+    const remainingMs = diffMs % (1000 * 60 * 60 * 24);
+    const remainingMinutes = Math.floor(remainingMs / (1000 * 60));
+    
+    // Calculate each time unit independently
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const hours = Math.floor(remainingMinutes / 60);
+    const minutes = remainingMinutes % 60;
+    
+    console.log('Time differences:', {
+      diffMs,
+      days,
+      hours,
+      minutes
+    });
+    
+    // Return appropriate format based on time difference
+    if (days > 0) return $t('time.daysAgo', { days });
+    if (hours > 0) return $t('time.hoursAgo', { hours });
+    if (minutes > 0) return $t('time.minutesAgo', { minutes });
+    return $t('time.justNow');
+  }
 </script>
 
 <main>
@@ -205,6 +267,7 @@
   </div>
 
   <div class="controls">
+    <button class="add-button" on:click={openAddDialog}>{$t('actions.add')}</button>
     <div class="pagination">
       <span class="pagination-info">
         {$t('pagination.showing')} {startItem}-{endItem} {$t('pagination.of')} {totalItems} {$t('pagination.items')}
@@ -235,7 +298,8 @@
   </div>
 
   <div class="excel-table">
-    <div class="table-header">
+    <div class="table-container">
+      <div class="table-header">
       <button 
         class="header-cell sortable" 
         on:click={() => handleSort('location')}
@@ -321,37 +385,55 @@
         {/if}
       </button>
       <div class="header-cell">
+        <span class="header-text">{$t('columns.lastModified')}</span>
+      </div>
+      <div class="header-cell">
         <span class="header-text">{$t('columns.actions')}</span>
       </div>
     </div>
 
-    <!-- New Item Row -->
-    <div class="table-row new-row">
-      <div class="table-cell">
-        <input bind:value={newItem.location} placeholder={$t('columns.location')} />
+    <!-- Add Item Dialog -->
+    {#if showAddDialog}
+      <div class="dialog-overlay">
+        <div class="dialog">
+          <h3>{$t('dialog.addItem')}</h3>
+          <div class="dialog-content">
+            <div class="form-group">
+              <label for="location">{$t('columns.location')}</label>
+              <input id="location" bind:value={newItem.location} />
+            </div>
+            <div class="form-group">
+              <label for="part_number">{$t('columns.partNumber')}</label>
+              <input id="part_number" bind:value={newItem.part_number} />
+            </div>
+            <div class="form-group">
+              <label for="name">{$t('columns.name')}</label>
+              <input id="name" bind:value={newItem.name} />
+            </div>
+            <div class="form-group">
+              <label for="description">{$t('columns.description')}</label>
+              <input id="description" bind:value={newItem.description} />
+            </div>
+            <div class="form-group">
+              <label for="purchase_price">{$t('columns.purchasePrice')}</label>
+              <input id="purchase_price" type="number" step="0.01" bind:value={newItem.purchase_price} />
+            </div>
+            <div class="form-group">
+              <label for="sale_price">{$t('columns.salePrice')}</label>
+              <input id="sale_price" type="number" step="0.01" bind:value={newItem.sale_price} />
+            </div>
+            <div class="form-group">
+              <label for="quantity">{$t('columns.quantity')}</label>
+              <input id="quantity" type="number" bind:value={newItem.quantity} />
+            </div>
+          </div>
+          <div class="dialog-actions">
+            <button class="cancel-button" on:click={closeAddDialog}>{$t('dialog.cancel')}</button>
+            <button class="confirm-button" on:click={() => { addItem(); closeAddDialog(); }}>{$t('actions.add')}</button>
+          </div>
+        </div>
       </div>
-      <div class="table-cell">
-        <input bind:value={newItem.part_number} placeholder={$t('columns.partNumber')} />
-      </div>
-      <div class="table-cell">
-        <input bind:value={newItem.name} placeholder={$t('columns.name')} />
-      </div>
-      <div class="table-cell">
-        <input bind:value={newItem.description} placeholder={$t('columns.description')} />
-      </div>
-      <div class="table-cell">
-        <input type="number" step="0.01" bind:value={newItem.purchase_price} placeholder={$t('columns.purchasePrice')} />
-      </div>
-      <div class="table-cell">
-        <input type="number" step="0.01" bind:value={newItem.sale_price} placeholder={$t('columns.salePrice')} />
-      </div>
-      <div class="table-cell">
-        <input type="number" bind:value={newItem.quantity} placeholder={$t('columns.quantity')} />
-      </div>
-      <div class="table-cell">
-        <button class="add-button" on:click={addItem}>{$t('actions.add')}</button>
-      </div>
-    </div>
+    {/if}
 
     {#if loading}
       <div class="loading-overlay">
@@ -384,6 +466,9 @@
           <div class="table-cell">
             <input type="number" bind:value={editing.quantity} />
           </div>
+          <div class="table-cell datetime-cell">
+            {formatDateTime(editing.last_modified)}
+          </div>
           <div class="table-cell actions">
             <button on:click={() => updateItem(editing)}>{$t('actions.save')}</button>
             <button on:click={cancelEdit}>{$t('actions.cancel')}</button>
@@ -396,6 +481,7 @@
           <div class="table-cell">{item.purchase_price?.toFixed(2)}</div>
           <div class="table-cell">{item.sale_price?.toFixed(2)}</div>
           <div class="table-cell">{item.quantity}</div>
+          <div class="table-cell datetime-cell">{formatDateTime(item.last_modified)}</div>
           <div class="table-cell actions">
             <button on:click={() => startEdit(item)}>{$t('actions.edit')}</button>
             <button on:click={() => deleteItem(item.id)}>{$t('actions.delete')}</button>
@@ -403,6 +489,7 @@
         {/if}
       </div>
     {/each}
+    </div>
   </div>
 </main>
 
@@ -520,7 +607,7 @@
   main {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 20px 40px;
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -535,6 +622,12 @@
     border-collapse: collapse;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     font-size: 14px;
+  }
+
+  .table-container {
+    width: 100%;
+    overflow-x: auto;
+    min-width: 1040px;
   }
 
   .loading-overlay {
@@ -566,7 +659,7 @@
 
   .table-header {
     display: grid;
-    grid-template-columns: 1fr 1.2fr 1.5fr 1.5fr 1fr 1fr 0.8fr 0.8fr;
+    grid-template-columns: 120px 120px 150px 150px 100px 100px 80px 120px 160px;
     background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
     color: #212529;
     font-weight: bold;
@@ -626,7 +719,7 @@
 
   .table-row {
     display: grid;
-    grid-template-columns: 1fr 1.2fr 1.5fr 1.5fr 1fr 1fr 0.8fr 0.8fr;
+    grid-template-columns: 120px 120px 150px 150px 100px 100px 80px 120px 160px;
     min-height: 32px;
     background: white;
     border-bottom: 1px solid #dee2e6;
@@ -654,6 +747,18 @@
     line-height: 1.4;
   }
 
+  .actions {
+    gap: 4px;
+    padding: 8px 6px;
+  }
+
+  .datetime-cell {
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   input {
     width: 100%;
     padding: 6px 8px;
@@ -677,7 +782,7 @@
   }
 
   button {
-    padding: 6px 12px;
+    padding: 6px 8px;
     margin: 0 4px;
     background: linear-gradient(180deg, #4CAF50 0%, #45a049 100%);
     color: white;
@@ -711,6 +816,80 @@
   }
 
   .add-button {
-    width: 100%;
+    width: auto;
+    min-width: 100px;
+  }
+
+  .dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1100;
+  }
+
+  .dialog {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    width: 500px;
+    max-width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .dialog h3 {
+    margin: 0 0 20px 0;
+    color: #212529;
+    font-size: 1.25rem;
+  }
+
+  .dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-group label {
+    color: #495057;
+    font-weight: 500;
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #dee2e6;
+  }
+
+  .cancel-button {
+    background: linear-gradient(180deg, #6c757d 0%, #5a6268 100%);
+  }
+
+  .cancel-button:hover {
+    background: linear-gradient(180deg, #5a6268 0%, #545b62 100%);
+  }
+
+  .confirm-button {
+    background: linear-gradient(180deg, #4CAF50 0%, #45a049 100%);
+  }
+
+  .confirm-button:hover {
+    background: linear-gradient(180deg, #45a049 0%, #3d8b40 100%);
   }
 </style>

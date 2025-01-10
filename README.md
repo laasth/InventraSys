@@ -36,7 +36,7 @@ A modern inventory management system built with Svelte and Express, featuring re
 
 1. Clone the repository:
    ```bash
-   git clone [repository-url]
+   git clone https://github.com/laasth/InventraSys.git
    cd InventraSys
    ```
 

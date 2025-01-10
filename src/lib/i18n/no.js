@@ -19,6 +19,8 @@ export default {
     purchasePrice: 'Innkjøpspris',
     salePrice: 'Utsalgspris',
     quantity: 'Antall',
+    lastModified: 'Sist Endret',
+    lastStockCount: 'Sist Opptalt',
     actions: 'Handlinger'
   },
   actions: {
@@ -35,6 +37,13 @@ export default {
     removeFromInventory: 'Fjern fra lager',
     removeUnits: 'Hvor mange enheter vil du fjerne fra {name}?',
     cancel: 'Avbryt',
-    confirm: 'Bekreft'
+    confirm: 'Bekreft',
+    addItem: 'Legg til ny vare'
+  },
+  time: {
+    justNow: 'Akkurat nå',
+    minutesAgo: '{minutes} minutter siden',
+    hoursAgo: '{hours} timer siden',
+    daysAgo: '{days} dager siden'
   }
 };

@@ -24,14 +24,16 @@ function importCsvData(dbPath, csvPath) {
       location TEXT,
       purchase_price REAL,
       sale_price REAL,
-      quantity INTEGER DEFAULT 0
+      quantity INTEGER DEFAULT 0,
+      last_modified DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_stock_count DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
   try {
     // Check if table is empty
     const result = db.prepare('SELECT COUNT(*) as count FROM inventory').get();
-    if (result && result.count > 0) {
+    if (result && typeof result === 'object' && result !== null && 'count' in result && typeof result.count === 'number' && result.count > 0) {
       console.log('Database already contains data, skipping import');
       return;
     }
@@ -43,8 +45,8 @@ function importCsvData(dbPath, csvPath) {
     const dataRows = lines.slice(1);
     
     const insertStmt = db.prepare(`
-      INSERT INTO inventory (part_number, name, description, location, purchase_price, sale_price, quantity)
-      VALUES (@part_number, @name, @description, @location, @purchase_price, @sale_price, @quantity)
+      INSERT INTO inventory (part_number, name, description, location, purchase_price, sale_price, quantity, last_modified, last_stock_count)
+      VALUES (@part_number, @name, @description, @location, @purchase_price, @sale_price, @quantity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
 
     db.transaction(() => {

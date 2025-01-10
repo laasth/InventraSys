@@ -19,6 +19,8 @@ export default {
     purchasePrice: 'Purchase Price',
     salePrice: 'Sale Price',
     quantity: 'Quantity',
+    lastModified: 'Last Modified',
+    lastStockCount: 'Last Stock Count',
     actions: 'Actions'
   },
   actions: {
@@ -35,6 +37,13 @@ export default {
     removeFromInventory: 'Remove from Inventory',
     removeUnits: 'How many units do you want to remove from {name}?',
     cancel: 'Cancel',
-    confirm: 'Confirm'
+    confirm: 'Confirm',
+    addItem: 'Add New Item'
+  },
+  time: {
+    justNow: 'Just now',
+    minutesAgo: '{minutes} minutes ago',
+    hoursAgo: '{hours} hours ago',
+    daysAgo: '{days} days ago'
   }
 };

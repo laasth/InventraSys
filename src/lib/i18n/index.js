@@ -11,7 +11,7 @@ const translations = {
 export const t = derived(
   languageStore,
   $language => {
-    const translate = (key) => {
+    const translate = (key, params) => {
       const keys = key.split('.');
       let value = translations[$language];
       
@@ -20,7 +20,14 @@ export const t = derived(
         value = value[k];
       }
       
-      return value || key;
+      if (!value) return key;
+      
+      if (params) {
+        return Object.entries(params).reduce((str, [key, val]) => 
+          str.replace(`{${key}}`, val), value);
+      }
+      
+      return value;
     };
     
     return translate;

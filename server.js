@@ -127,13 +127,15 @@ function notifyClients() {
 db.exec(`
   CREATE TABLE IF NOT EXISTS inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    part_number TEXT NOT NULL,
-    name TEXT NOT NULL,
+    part_number TEXT,
+    name TEXT,
     description TEXT,
     location TEXT,
     purchase_price REAL,
     sale_price REAL,
-    quantity INTEGER DEFAULT 0
+    quantity INTEGER DEFAULT 0,
+    last_modified DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_stock_count DATETIME
   )
 `);
 
@@ -159,18 +161,20 @@ app.get('/api/inventory', (req, res) => {
 function validateInventoryData(data) {
   const errors = [];
   
-  // Required fields
-  if (!data.part_number || typeof data.part_number !== 'string') errors.push('Invalid part_number');
-  if (!data.name || typeof data.name !== 'string') errors.push('Invalid name');
+  // String fields with null validation
+  if (data.part_number !== null && (typeof data.part_number !== 'string')) errors.push('Invalid part_number');
+  if (data.name !== null && (typeof data.name !== 'string')) errors.push('Invalid name');
   
-  // Optional fields with type validation
-  if (data.description && typeof data.description !== 'string') errors.push('Invalid description');
+  // Other string fields with null validation
+  if (data.description !== null && (typeof data.description !== 'string')) errors.push('Invalid description');
   if (data.location && typeof data.location !== 'string') errors.push('Invalid location');
   
   // Numeric fields
   if (typeof data.purchase_price !== 'number' || isNaN(data.purchase_price)) errors.push('Invalid purchase_price');
   if (typeof data.sale_price !== 'number' || isNaN(data.sale_price)) errors.push('Invalid sale_price');
   if (typeof data.quantity !== 'number' || !Number.isInteger(data.quantity)) errors.push('Invalid quantity');
+  
+  // Datetime fields are handled by SQLite, no validation needed
   
   return errors;
 }
@@ -184,9 +188,9 @@ function validateId(id) {
 app.post('/api/inventory', (req, res) => {
   try {
     const data = {
-      part_number: String(req.body.part_number || ''),
-      name: String(req.body.name || ''),
-      description: String(req.body.description || ''),
+      part_number: req.body.part_number === null ? null : String(req.body.part_number || ''),
+      name: req.body.name === null ? null : String(req.body.name || ''),
+      description: req.body.description === null ? null : String(req.body.description || ''),
       location: String(req.body.location || ''),
       purchase_price: Number(req.body.purchase_price || 0),
       sale_price: Number(req.body.sale_price || 0),
@@ -199,8 +203,8 @@ app.post('/api/inventory', (req, res) => {
     }
 
     const stmt = db.prepare(`
-      INSERT INTO inventory (part_number, name, description, location, purchase_price, sale_price, quantity)
-      VALUES (@part_number, @name, @description, @location, @purchase_price, @sale_price, @quantity)
+      INSERT INTO inventory (part_number, name, description, location, purchase_price, sale_price, quantity, last_modified)
+      VALUES (@part_number, @name, @description, @location, @purchase_price, @sale_price, @quantity, datetime('now'))
     `);
     
     const result = stmt.run(data);
@@ -215,25 +219,47 @@ app.post('/api/inventory', (req, res) => {
 // Update item
 app.put('/api/inventory/:id', (req, res) => {
   try {
+    console.log('PUT /api/inventory/:id - Request received:', {
+      id: req.params.id,
+      body: req.body
+    });
+
     const id = req.params.id;
     if (!validateId(id)) {
+      console.log('PUT /api/inventory/:id - Invalid ID format:', id);
       return res.status(400).json({ error: 'Invalid ID format' });
     }
 
     const data = {
       id: parseInt(id),
-      part_number: String(req.body.part_number || ''),
-      name: String(req.body.name || ''),
-      description: String(req.body.description || ''),
+      part_number: req.body.part_number === null ? null : String(req.body.part_number || ''),
+      name: req.body.name === null ? null : String(req.body.name || ''),
+      description: req.body.description === null ? null : String(req.body.description || ''),
       location: String(req.body.location || ''),
       purchase_price: Number(req.body.purchase_price || 0),
       sale_price: Number(req.body.sale_price || 0),
-      quantity: parseInt(req.body.quantity || 0)
+      quantity: parseInt(req.body.quantity || 0),
+      // Datetime fields are handled by SQLite
+      last_modified: null,
+      last_stock_count: null
     };
 
+    console.log('PUT /api/inventory/:id - Validating data:', data);
     const validationErrors = validateInventoryData(data);
     if (validationErrors.length > 0) {
+      console.log('PUT /api/inventory/:id - Validation errors:', {
+        errors: validationErrors,
+        data: data
+      });
       return res.status(400).json({ errors: validationErrors });
+    }
+
+    // Get current item data before update
+    console.log('PUT /api/inventory/:id - Fetching current item data for ID:', data.id);
+    const currentItem = db.prepare('SELECT quantity FROM inventory WHERE id = ?').get(data.id);
+    if (!currentItem) {
+      console.log('PUT /api/inventory/:id - Item not found:', data.id);
+      return res.status(404).json({ error: 'Item not found' });
     }
 
     const stmt = db.prepare(`
@@ -244,19 +270,31 @@ app.put('/api/inventory/:id', (req, res) => {
           location = @location,
           purchase_price = @purchase_price,
           sale_price = @sale_price,
-          quantity = @quantity
+          quantity = @quantity,
+          last_modified = datetime('now')
       WHERE id = @id
     `);
     
+    console.log('PUT /api/inventory/:id - Executing update query');
     const result = stmt.run(data);
     if (result.changes === 0) {
+      console.log('PUT /api/inventory/:id - No rows updated for ID:', data.id);
       return res.status(404).json({ error: 'Item not found' });
     }
+    
+    console.log('PUT /api/inventory/:id - Update successful:', {
+      id: data.id,
+      changes: result.changes
+    });
     
     notifyClients();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in PUT /api/inventory/:id:', error);
+    console.error('Error in PUT /api/inventory/:id:', {
+      error: error.message,
+      stack: error.stack,
+      data: data
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
