@@ -9,15 +9,21 @@ A modern inventory management system built with Svelte and Express, featuring re
   - Add, edit, and delete inventory items
   - Adjust quantities with increment/decrement controls
 
-- **Advanced Search**
+- **Advanced Search and Pagination**
   - Instant search functionality
   - Filter by part number (Delenummer) or product name (Navn)
   - Case-insensitive search
+  - Search state persists between views
+  - Server-side pagination (25 items per page)
+  - Efficient handling of large datasets
 
 - **User-Friendly Interface**
   - Clean, Excel-like table layout
   - Responsive design
   - Intuitive controls
+  - Sortable columns with keyboard navigation
+  - Consistent search bar positioning across views
+  - Loading states for better user feedback
 
 ## Getting Started
 
@@ -100,13 +106,14 @@ export PORT=8080
 node server.js
 ```
 
-
 ## Project Structure
 
 ```
 InventraSys/
 ├── src/                    # Frontend source files
 │   ├── lib/               # Svelte components
+│   │   ├── stores.js     # Shared state management
+│   │   ├── ManageInventory.svelte  # Inventory management view
 │   ├── assets/           # Static assets
 │   ├── App.svelte        # Main application component
 │   └── main.js           # Application entry point
@@ -124,23 +131,42 @@ InventraSys/
 - Edit existing items
 - Delete items
 - Adjust quantities using + and - buttons
+- Sort items by any column
+- Keyboard navigation support
 
-### Search Functionality
+### Search and Pagination
 - Real-time filtering as you type
+- Search state persists between views
 - Searches across:
   - Part numbers (Delenummer)
   - Product names (Navn)
 - Case-insensitive matching
 - Instant results update
+- Server-side pagination
+- 25 items per page for optimal performance
+- Maintains search and sort state during navigation
 
 ### Data Persistence
 - SQLite database for reliable data storage
 - Initial data import from CSV
 - Real-time synchronization across clients
+- Efficient handling of large datasets
+
+### State Management
+- Shared state between views using Svelte stores
+- Persistent search and sort preferences
+- Dynamic API configuration
+- Loading state management
 
 ## API Endpoints
 
-- `GET /api/inventory` - Get all inventory items
+- `GET /api/inventory` - Get paginated inventory items
+  - Query parameters:
+    - page: Page number
+    - itemsPerPage: Items per page (default: 25)
+    - searchQuery: Search term
+    - sortBy: Column to sort by
+    - sortOrder: Sort direction (asc/desc)
 - `POST /api/inventory` - Add a new item
 - `PUT /api/inventory/:id` - Update an item
 - `DELETE /api/inventory/:id` - Delete an item
@@ -152,7 +178,10 @@ InventraSys/
   - Svelte
   - Vite
   - SSE for real-time updates
+  - Svelte stores for state management
 
 - **Backend**
   - Express.js with integrated Vite middleware
   - SQLite (better-sqlite3)
+  - Server-side pagination
+  - Dynamic configuration

@@ -1,9 +1,8 @@
 <script>
-  import { currentPage } from './stores.js';
+  import { currentPage, paginationStore, filterStore, apiConfig } from './stores.js';
   import { onMount, onDestroy } from 'svelte';
 
   let items = [];
-  let eventSource;
   let newItem = {
     delenummer: '',
     navn: '',
@@ -14,19 +13,29 @@
     antall: ''
   };
   let editing = null;
+  let searchTimeout;
+  let loading = false;
+  let eventSource;
+
+  // Subscribe to stores
+  $: ({ currentPage: pageNum, itemsPerPage, totalItems, totalPages } = $paginationStore);
+  $: ({ searchQuery, searchInput, sortBy, sortOrder } = $filterStore);
+
+  // Computed properties for pagination
+  $: startItem = (pageNum - 1) * itemsPerPage + 1;
+  $: endItem = Math.min(pageNum * itemsPerPage, totalItems);
+  $: pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+  // Watch for changes in pagination or filter settings
+  $: {
+    if (pageNum || itemsPerPage || searchQuery || sortBy || sortOrder) {
+      fetchItems();
+    }
+  }
 
   onMount(() => {
-    // Set up SSE connection
-    eventSource = new EventSource('http://localhost:3000/api/updates');
-    
-    eventSource.onmessage = (event) => {
-      items = JSON.parse(event.data);
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('SSE Error:', error);
-      eventSource.close();
-    };
+    fetchItems();
+    setupSSE();
   });
 
   onDestroy(() => {
@@ -35,42 +44,124 @@
     }
   });
 
-  async function addItem() {
-    const response = await fetch('http://localhost:3000/api/inventory', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...newItem,
-        inn_pris: parseFloat(newItem.inn_pris),
-        ut_pris: parseFloat(newItem.ut_pris),
-        antall: parseInt(newItem.antall)
-      })
-    });
-    newItem = {
-      delenummer: '',
-      navn: '',
-      beskrivelse: '',
-      lokasjon: '',
-      inn_pris: '',
-      ut_pris: '',
-      antall: ''
+  function setupSSE() {
+    eventSource = new EventSource(`http://${$apiConfig.host}:${$apiConfig.port}/api/updates`);
+    
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'update') {
+        fetchItems(); // Refresh data when we receive an update
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE Error:', error);
+      eventSource.close();
+      // Retry connection after 5 seconds
+      setTimeout(setupSSE, 5000);
     };
   }
 
+  async function fetchItems() {
+    try {
+      loading = true;
+      const params = new URLSearchParams({
+        page: pageNum.toString(),
+        itemsPerPage: itemsPerPage.toString(),
+        searchQuery,
+        sortBy,
+        sortOrder
+      });
+
+      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?${params}`);
+      const data = await response.json();
+      items = data.items;
+      paginationStore.set(data.pagination);
+    } catch (error) {
+      console.error('Error fetching items:', error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  function handleSearch() {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      filterStore.update(state => ({ 
+        ...state, 
+        searchQuery: $filterStore.searchInput,
+        currentPage: 1 
+      }));
+      paginationStore.update(state => ({ ...state, currentPage: 1 }));
+    }, 300);
+  }
+
+  function handleSort(column) {
+    filterStore.update(state => ({
+      ...state,
+      sortBy: column,
+      sortOrder: state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc'
+    }));
+  }
+
+  function changePage(page) {
+    if (page >= 1 && page <= totalPages) {
+      paginationStore.update(state => ({ ...state, currentPage: page }));
+    }
+  }
+
+  async function addItem() {
+    try {
+      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newItem,
+          inn_pris: parseFloat(newItem.inn_pris),
+          ut_pris: parseFloat(newItem.ut_pris),
+          antall: parseInt(newItem.antall)
+        })
+      });
+      if (response.ok) {
+        newItem = {
+          delenummer: '',
+          navn: '',
+          beskrivelse: '',
+          lokasjon: '',
+          inn_pris: '',
+          ut_pris: '',
+          antall: ''
+        };
+      }
+    } catch (error) {
+      console.error('Error adding item:', error);
+    }
+  }
+
   async function updateItem(item) {
-    await fetch(`http://localhost:3000/api/inventory/${item.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
-    });
-    editing = null;
+    try {
+      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item)
+      });
+      if (response.ok) {
+        editing = null;
+      }
+    } catch (error) {
+      console.error('Error updating item:', error);
+    }
   }
 
   async function deleteItem(id) {
     if (confirm('Er du sikker på at du vil slette denne varen?')) {
-      await fetch(`http://localhost:3000/api/inventory/${id}`, {
-        method: 'DELETE'
-      });
+      try {
+        await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${id}`, {
+          method: 'DELETE'
+        });
+      } catch (error) {
+        console.error('Error deleting item:', error);
+      }
     }
   }
 
@@ -90,19 +181,139 @@
 <main>
   <div class="header">
     <h2>Administrer Lager</h2>
-    <button class="back-button" on:click={goToList}>Tilbake til Liste</button>
+    <div class="header-controls">
+      <div class="search-container">
+        <input 
+          type="text" 
+          bind:value={$filterStore.searchInput} 
+          on:input={handleSearch}
+          placeholder="Søk etter delenummer eller navn..."
+          class="search-input"
+        />
+      </div>
+      <button class="back-button" on:click={goToList}>Tilbake til Liste</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="pagination">
+      <span class="pagination-info">
+        Viser {startItem}-{endItem} av {totalItems} varer
+      </span>
+      <div class="pagination-controls">
+        <button
+          disabled={pageNum === 1}
+          on:click={() => changePage(pageNum - 1)}
+        >
+          ←
+        </button>
+        {#each pages as page}
+          <button
+            class:active={page === pageNum}
+            on:click={() => changePage(page)}
+          >
+            {page}
+          </button>
+        {/each}
+        <button
+          disabled={pageNum === totalPages}
+          on:click={() => changePage(pageNum + 1)}
+        >
+          →
+        </button>
+      </div>
+    </div>
   </div>
 
   <div class="excel-table">
     <div class="table-header">
-      <div class="header-cell">Plassering</div>
-      <div class="header-cell">Delenummer</div>
-      <div class="header-cell">Navn</div>
-      <div class="header-cell">Beskrivelse</div>
-      <div class="header-cell">Innkjøpspris</div>
-      <div class="header-cell">Utsalgspris</div>
-      <div class="header-cell">Antall</div>
-      <div class="header-cell">Handlinger</div>
+      <button 
+        class="header-cell sortable" 
+        on:click={() => handleSort('lokasjon')}
+        on:keydown={e => e.key === 'Enter' && handleSort('lokasjon')}
+        role="columnheader"
+        aria-sort={sortBy === 'lokasjon' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        <span class="header-text">Plassering</span>
+        {#if sortBy === 'lokasjon'}
+          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+        {/if}
+      </button>
+      <button 
+        class="header-cell sortable" 
+        on:click={() => handleSort('delenummer')}
+        on:keydown={e => e.key === 'Enter' && handleSort('delenummer')}
+        role="columnheader"
+        aria-sort={sortBy === 'delenummer' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        <span class="header-text">Delenummer</span>
+        {#if sortBy === 'delenummer'}
+          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+        {/if}
+      </button>
+      <button 
+        class="header-cell sortable" 
+        on:click={() => handleSort('navn')}
+        on:keydown={e => e.key === 'Enter' && handleSort('navn')}
+        role="columnheader"
+        aria-sort={sortBy === 'navn' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        <span class="header-text">Navn</span>
+        {#if sortBy === 'navn'}
+          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+        {/if}
+      </button>
+      <button 
+        class="header-cell sortable" 
+        on:click={() => handleSort('beskrivelse')}
+        on:keydown={e => e.key === 'Enter' && handleSort('beskrivelse')}
+        role="columnheader"
+        aria-sort={sortBy === 'beskrivelse' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        <span class="header-text">Beskrivelse</span>
+        {#if sortBy === 'beskrivelse'}
+          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+        {/if}
+      </button>
+      <button 
+        class="header-cell sortable" 
+        on:click={() => handleSort('inn_pris')}
+        on:keydown={e => e.key === 'Enter' && handleSort('inn_pris')}
+        role="columnheader"
+        aria-sort={sortBy === 'inn_pris' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        <span class="header-text">Innkjøpspris</span>
+        {#if sortBy === 'inn_pris'}
+          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+        {/if}
+      </button>
+      <button 
+        class="header-cell sortable" 
+        on:click={() => handleSort('ut_pris')}
+        on:keydown={e => e.key === 'Enter' && handleSort('ut_pris')}
+        role="columnheader"
+        aria-sort={sortBy === 'ut_pris' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        <span class="header-text">Utsalgspris</span>
+        {#if sortBy === 'ut_pris'}
+          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+        {/if}
+      </button>
+      <button 
+        class="header-cell sortable" 
+        on:click={() => handleSort('antall')}
+        on:keydown={e => e.key === 'Enter' && handleSort('antall')}
+        role="columnheader"
+        aria-sort={sortBy === 'antall' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        <span class="header-text">Antall</span>
+        {#if sortBy === 'antall'}
+          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+        {/if}
+      </button>
+      <div class="header-cell">
+        <span class="header-text">Handlinger</span>
+      </div>
     </div>
 
     <!-- New Item Row -->
@@ -132,6 +343,12 @@
         <button class="add-button" on:click={addItem}>Legg til</button>
       </div>
     </div>
+
+    {#if loading}
+      <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+      </div>
+    {/if}
 
     <!-- Existing Items -->
     {#each items as item}
@@ -188,6 +405,80 @@
     margin-bottom: 20px;
   }
 
+  .header-controls {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .search-container {
+    position: relative;
+  }
+
+  .search-input {
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 300px;
+    transition: all 0.15s ease-in-out;
+    background-color: #f8f9fa;
+    color: #212529;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #646cff;
+    box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
+  }
+
+  .search-input::placeholder {
+    color: #6c757d;
+  }
+
+  .controls {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 20px;
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .pagination-info {
+    color: #6c757d;
+    font-size: 14px;
+  }
+
+  .pagination-controls {
+    display: flex;
+    gap: 4px;
+  }
+
+  .pagination-controls button {
+    padding: 6px 12px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    color: #212529;
+    cursor: pointer;
+  }
+
+  .pagination-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .pagination-controls button.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+  }
+
   h2 {
     margin: 0;
     color: #212529;
@@ -211,6 +502,7 @@
   }
 
   .excel-table {
+    position: relative;
     border: 1px solid #c6c6c6;
     font-family: 'Segoe UI', Arial, sans-serif;
     background: white;
@@ -218,6 +510,33 @@
     border-collapse: collapse;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     font-size: 14px;
+  }
+
+  .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 
   .table-header {
@@ -236,6 +555,38 @@
     border-bottom: 2px solid #c6c6c6;
     user-select: none;
     position: relative;
+  }
+
+  .header-cell.sortable {
+    cursor: pointer;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-weight: 600;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .header-text {
+    color: #212529;
+  }
+
+  .header-cell.sortable:hover {
+    background: #e9ecef;
+  }
+
+  .header-cell.sortable:focus {
+    outline: none;
+    background: #e9ecef;
+    box-shadow: inset 0 0 0 2px #007bff;
+  }
+
+  .sort-indicator {
+    margin-left: 4px;
+    color: #007bff;
   }
 
   .header-cell::after {
