@@ -3,6 +3,9 @@
   import { t, availableLanguages } from './i18n/index.js';
   import { onMount, onDestroy } from 'svelte';
 
+  // Reactive statement to check if any field has data
+  $: hasData = Object.values(newItem).some(value => value !== '');
+
   let items = [];
   let newItem = {
     part_number: '',
@@ -429,7 +432,7 @@
           </div>
           <div class="dialog-actions">
             <button class="cancel-button" on:click={closeAddDialog}>{$t('dialog.cancel')}</button>
-            <button class="confirm-button" on:click={() => { addItem(); closeAddDialog(); }}>{$t('actions.add')}</button>
+            <button class="confirm-button" on:click={() => { addItem(); closeAddDialog(); }} disabled={!hasData}>{$t('actions.add')}</button>
           </div>
         </div>
       </div>
@@ -760,7 +763,7 @@
   }
 
   input {
-    width: 100%;
+    width: 90%;
     padding: 6px 8px;
     border: 1px solid #ced4da;
     border-radius: 4px;
@@ -791,6 +794,12 @@
     cursor: pointer;
     font-size: 14px;
     transition: all 0.15s ease-in-out;
+  }
+
+  button:disabled {
+    background: linear-gradient(180deg, #cccccc 0%, #bbbbbb 100%);
+    cursor: not-allowed;
+    opacity: 0.7;
   }
 
   button:hover {
@@ -845,27 +854,54 @@
   }
 
   .dialog h3 {
-    margin: 0 0 20px 0;
+    margin: 0 0 16px 0;
     color: #212529;
     font-size: 1.25rem;
+    padding: 0 12px;
   }
 
   .dialog-content {
+    margin-bottom: 16px;
+    padding: 0 20px;
     display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 20px;
   }
 
   .form-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
+  }
+
+  /* Location and Part Number */
+  .form-group:nth-child(1),
+  .form-group:nth-child(2) {
+    flex: 0 0 calc(50% - 10px);
+  }
+
+  /* Name and Description */
+  .form-group:nth-child(3),
+  .form-group:nth-child(4) {
+    flex: 0 0 100%;
+  }
+
+  /* Purchase Price, Sale Price, and Quantity */
+  .form-group:nth-child(5),
+  .form-group:nth-child(6),
+  .form-group:nth-child(7) {
+    flex: 0 0 calc(33.333% - 14px);
   }
 
   .form-group label {
     color: #495057;
     font-weight: 500;
+    font-size: 0.9rem;
+  }
+
+  .form-group input {
+    padding: 6px 12px;
+    height: 32px;
   }
 
   .dialog-actions {
@@ -873,23 +909,7 @@
     justify-content: flex-end;
     gap: 12px;
     margin-top: 20px;
-    padding-top: 20px;
+    padding: 20px 12px 0;
     border-top: 1px solid #dee2e6;
-  }
-
-  .cancel-button {
-    background: linear-gradient(180deg, #6c757d 0%, #5a6268 100%);
-  }
-
-  .cancel-button:hover {
-    background: linear-gradient(180deg, #5a6268 0%, #545b62 100%);
-  }
-
-  .confirm-button {
-    background: linear-gradient(180deg, #4CAF50 0%, #45a049 100%);
-  }
-
-  .confirm-button:hover {
-    background: linear-gradient(180deg, #45a049 0%, #3d8b40 100%);
   }
 </style>
