@@ -3,6 +3,7 @@
   import { currentPage, paginationStore, filterStore, apiConfig, languageStore } from './lib/stores.js';
   import { t, availableLanguages } from './lib/i18n/index.js';
   import ManageInventory from './lib/ManageInventory.svelte';
+  import StockCount from './lib/StockCount.svelte';
 
   let items = [];
   let selectedItem = null;
@@ -146,6 +147,8 @@
 
 {#if $currentPage === 'manage'}
   <ManageInventory />
+{:else if $currentPage === 'stockCount'}
+  <StockCount />
 {:else}
   <main>
     <div class="header">

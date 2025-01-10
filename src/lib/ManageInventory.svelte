@@ -2,6 +2,7 @@
   import { currentPage, paginationStore, filterStore, apiConfig, languageStore } from './stores.js';
   import { t, availableLanguages } from './i18n/index.js';
   import { onMount, onDestroy } from 'svelte';
+  import { formatDateTime } from './utils.js';
 
   // Reactive statement to check if any field has data
   $: hasData = Object.values(newItem).some(value => value !== '');
@@ -198,50 +199,6 @@
   function goToList() {
     currentPage.set('list');
   }
-
-  function formatDateTime(dateStr) {
-    if (!dateStr) return '';
-    
-    console.log('Raw date string:', dateStr);
-    
-    // SQLite datetime format: YYYY-MM-DD HH:MM:SS
-    // Parse manually to ensure consistent behavior
-    const [datePart, timePart] = dateStr.split(' ');
-    const [year, month, day] = datePart.split('-').map(Number);
-    const [hour, minute, second] = timePart.split(':').map(Number);
-    
-    // Create date in UTC
-    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
-    const now = new Date();
-    
-    console.log('Date objects:', {
-      date: date.toISOString(),
-      now: now.toISOString()
-    });
-    
-    // Calculate time difference in milliseconds
-    const diffMs = now.getTime() - date.getTime();
-    const remainingMs = diffMs % (1000 * 60 * 60 * 24);
-    const remainingMinutes = Math.floor(remainingMs / (1000 * 60));
-    
-    // Calculate each time unit independently
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor(remainingMinutes / 60);
-    const minutes = remainingMinutes % 60;
-    
-    console.log('Time differences:', {
-      diffMs,
-      days,
-      hours,
-      minutes
-    });
-    
-    // Return appropriate format based on time difference
-    if (days > 0) return $t('time.daysAgo', { days });
-    if (hours > 0) return $t('time.hoursAgo', { hours });
-    if (minutes > 0) return $t('time.minutesAgo', { minutes });
-    return $t('time.justNow');
-  }
 </script>
 
 <main>
@@ -270,7 +227,10 @@
   </div>
 
   <div class="controls">
-    <button class="add-button" on:click={openAddDialog}>{$t('actions.add')}</button>
+    <div class="left-controls">
+      <button class="add-button" on:click={openAddDialog}>{$t('actions.add')}</button>
+      <button class="stock-count-button" on:click={() => currentPage.set('stockCount')}>{$t('actions.stockCount')}</button>
+    </div>
     <div class="pagination">
       <span class="pagination-info">
         {$t('pagination.showing')} {startItem}-{endItem} {$t('pagination.of')} {totalItems} {$t('pagination.items')}
@@ -470,7 +430,7 @@
             <input type="number" bind:value={editing.quantity} />
           </div>
           <div class="table-cell datetime-cell">
-            {formatDateTime(editing.last_modified)}
+            {formatDateTime(editing.last_modified, $t)}
           </div>
           <div class="table-cell actions">
             <button on:click={() => updateItem(editing)}>{$t('actions.save')}</button>
@@ -484,7 +444,7 @@
           <div class="table-cell">{item.purchase_price?.toFixed(2)}</div>
           <div class="table-cell">{item.sale_price?.toFixed(2)}</div>
           <div class="table-cell">{item.quantity}</div>
-          <div class="table-cell datetime-cell">{formatDateTime(item.last_modified)}</div>
+          <div class="table-cell datetime-cell">{formatDateTime(item.last_modified, $t)}</div>
           <div class="table-cell actions">
             <button on:click={() => startEdit(item)}>{$t('actions.edit')}</button>
             <button on:click={() => deleteItem(item.id)}>{$t('actions.delete')}</button>
@@ -553,10 +513,22 @@
 
   .controls {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
-    gap: 20px;
+  }
+
+  .left-controls {
+    display: flex;
+    gap: 12px;
+  }
+
+  .stock-count-button {
+    background: linear-gradient(180deg, #17a2b8 0%, #138496 100%);
+  }
+
+  .stock-count-button:hover {
+    background: linear-gradient(180deg, #138496 0%, #117a8b 100%);
   }
 
   .pagination {

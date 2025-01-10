@@ -4,7 +4,8 @@ export default {
     listTitle: 'Lagerliste',
     search: 'Søk etter delenummer eller navn...',
     backToList: 'Tilbake til Liste',
-    manageInventory: 'Administrer Lager'
+    manageInventory: 'Administrer Lager',
+    backToInventory: 'Tilbake til Lager'
   },
   pagination: {
     showing: 'Viser',
@@ -28,7 +29,22 @@ export default {
     edit: 'Rediger',
     delete: 'Slett',
     save: 'Lagre',
-    cancel: 'Avbryt'
+    cancel: 'Avbryt',
+    stockCount: 'Varetelling'
+  },
+  stockCount: {
+    title: 'Varetelling',
+    enterQuantity: 'Angi Antall',
+    quantityPlaceholder: 'Angi nåværende antall',
+    confirmCurrent: 'Bekreft Nåværende',
+    update: 'Oppdater',
+    updated: 'Varetelling oppdatert',
+    completed: 'Varetelling fullført',
+    error: 'Feil ved oppdatering av varetelling',
+    invalidQuantity: 'Vennligst angi et gyldig antall',
+    noItems: 'Ingen varer å telle',
+    items: 'varer',
+    lastCounted: 'Sist opptalt'
   },
   confirmations: {
     deleteItem: 'Er du sikker på at du vil slette denne varen?'
