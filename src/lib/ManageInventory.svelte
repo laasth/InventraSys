@@ -166,7 +166,16 @@
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item)
+        body: JSON.stringify({
+          id: item.id,
+          part_number: item.part_number,
+          name: item.name,
+          description: item.description,
+          location: item.location,
+          purchase_price: item.purchase_price,
+          sale_price: item.sale_price,
+          quantity: item.quantity
+        })
       });
       if (response.ok) {
         editing = null;
@@ -752,10 +761,6 @@
     background: white;
   }
 
-  .new-row input {
-    background: white;
-  }
-
   button {
     padding: 6px 8px;
     margin: 0 4px;
@@ -785,15 +790,6 @@
 
   .actions button:last-child:hover {
     background: linear-gradient(180deg, #c82333 0%, #bd2130 100%);
-  }
-
-  .new-row {
-    background: #f8f9fa;
-    border-bottom: 2px solid #dee2e6;
-  }
-
-  .new-row:hover {
-    background: #e9ecef;
   }
 
   .add-button {

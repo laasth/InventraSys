@@ -22,12 +22,15 @@
       const data = await response.json();
       // Sort items: null last_stock_count first, then by oldest date
       items = data.items.sort((a, b) => {
-        // If both are null or both have dates, compare them
-        if ((!a.last_stock_count && !b.last_stock_count) || (a.last_stock_count && b.last_stock_count)) {
-          return (a.last_stock_count || '').localeCompare(b.last_stock_count || '');
+        // If both are null, keep original order
+        if (!a.last_stock_count && !b.last_stock_count) {
+          return 0;
         }
         // If only one is null, null should come first
-        return a.last_stock_count ? 1 : -1;
+        if (!a.last_stock_count) return -1;
+        if (!b.last_stock_count) return 1;
+        // Compare dates (oldest first)
+        return new Date(a.last_stock_count).getTime() - new Date(b.last_stock_count).getTime();
       });
     } catch (error) {
       console.error('Error fetching items:', error);
@@ -81,9 +84,15 @@
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...item,
+          id: item.id,
+          part_number: item.part_number,
+          name: item.name,
+          description: item.description,
+          location: item.location,
+          purchase_price: item.purchase_price,
+          sale_price: item.sale_price,
           quantity: newQuantity,
-          last_stock_count: new Date().toISOString()
+          last_stock_count: 'now'
         })
       });
 

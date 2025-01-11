@@ -123,7 +123,7 @@ function notifyClients() {
   });
 }
 
-// Create table if it doesn't exist and import data
+// Create table if it doesn't exist
 db.exec(`
   CREATE TABLE IF NOT EXISTS inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,7 +221,8 @@ app.put('/api/inventory/:id', (req, res) => {
   try {
     console.log('PUT /api/inventory/:id - Request received:', {
       id: req.params.id,
-      body: req.body
+      body: req.body,
+      last_stock_count: req.body.last_stock_count // Log the last_stock_count specifically
     });
 
     const id = req.params.id;
@@ -239,12 +240,15 @@ app.put('/api/inventory/:id', (req, res) => {
       purchase_price: Number(req.body.purchase_price || 0),
       sale_price: Number(req.body.sale_price || 0),
       quantity: parseInt(req.body.quantity || 0),
-      // Datetime fields are handled by SQLite
-      last_modified: null,
-      last_stock_count: null
+      // Include last_stock_count from request body if provided
+      last_stock_count: req.body.last_stock_count || null
     };
 
-    console.log('PUT /api/inventory/:id - Validating data:', data);
+    console.log('PUT /api/inventory/:id - Processing data:', {
+      ...data,
+      last_stock_count_received: req.body.last_stock_count,
+      last_stock_count_processed: data.last_stock_count
+    });
     const validationErrors = validateInventoryData(data);
     if (validationErrors.length > 0) {
       console.log('PUT /api/inventory/:id - Validation errors:', {
@@ -256,11 +260,13 @@ app.put('/api/inventory/:id', (req, res) => {
 
     // Get current item data before update
     console.log('PUT /api/inventory/:id - Fetching current item data for ID:', data.id);
-    const currentItem = db.prepare('SELECT quantity FROM inventory WHERE id = ?').get(data.id);
+    const currentItem = db.prepare('SELECT * FROM inventory WHERE id = ?').get(data.id);
     if (!currentItem) {
       console.log('PUT /api/inventory/:id - Item not found:', data.id);
       return res.status(404).json({ error: 'Item not found' });
     }
+
+    console.log('PUT /api/inventory/:id - Current item before update:', currentItem);
 
     const stmt = db.prepare(`
       UPDATE inventory 
@@ -271,7 +277,11 @@ app.put('/api/inventory/:id', (req, res) => {
           purchase_price = @purchase_price,
           sale_price = @sale_price,
           quantity = @quantity,
-          last_modified = datetime('now')
+          last_modified = strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime'),
+          last_stock_count = CASE 
+            WHEN @last_stock_count = 'now' THEN strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime')
+            ELSE last_stock_count
+          END
       WHERE id = @id
     `);
     
