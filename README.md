@@ -11,7 +11,7 @@ A modern inventory management system built with Svelte and Express, featuring re
 
 - **Advanced Search and Pagination**
   - Instant search functionality
-  - Filter by part number (Delenummer) or product name (Navn)
+  - Filter by part number or product name
   - Case-insensitive search
   - Search state persists between views
   - Server-side pagination (25 items per page)
@@ -24,6 +24,12 @@ A modern inventory management system built with Svelte and Express, featuring re
   - Sortable columns with keyboard navigation
   - Consistent search bar positioning across views
   - Loading states for better user feedback
+  - Multi-language support (English and Norwegian)
+
+- **Stock Management Tools**
+  - Dedicated stock counting interface
+  - CSV import functionality for bulk data management
+  - Easy-to-use stock adjustment controls
 
 ## Getting Started
 
@@ -114,6 +120,11 @@ InventraSys/
 │   ├── lib/               # Svelte components
 │   │   ├── stores.js     # Shared state management
 │   │   ├── ManageInventory.svelte  # Inventory management view
+│   │   ├── StockCount.svelte      # Stock counting interface
+│   │   ├── csvImporter.js        # CSV import utility
+│   │   ├── i18n/               # Internationalization
+│   │   │   ├── en.js         # English translations
+│   │   │   └── no.js         # Norwegian translations
 │   ├── assets/           # Static assets
 │   ├── App.svelte        # Main application component
 │   └── main.js           # Application entry point
@@ -138,8 +149,8 @@ InventraSys/
 - Real-time filtering as you type
 - Search state persists between views
 - Searches across:
-  - Part numbers (Delenummer)
-  - Product names (Navn)
+  - Part numbers
+  - Product names
 - Case-insensitive matching
 - Instant results update
 - Server-side pagination
@@ -157,6 +168,18 @@ InventraSys/
 - Persistent search and sort preferences
 - Dynamic API configuration
 - Loading state management
+- Language preference persistence
+
+### Internationalization
+- Full support for English and Norwegian
+- Easily extensible translation system
+- Language switching without page reload
+- Persistent language preferences
+
+### Data Import/Export
+- CSV import functionality for bulk data updates
+- Support for importing stock counts
+- Flexible data mapping for CSV imports
 
 ## API Endpoints
 
