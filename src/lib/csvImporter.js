@@ -75,7 +75,7 @@ function importCsvData(dbPath, csvPath) {
 
 // Run as standalone program if executed directly
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const dbPath = process.argv[2] || 'inventory.db';
+  const dbPath = process.argv[2] || 'db/inventory.db';
   const csvPath = process.argv[3] || 'Telleliste.csv';
   
   console.log(`Importing CSV data from ${csvPath} into database ${dbPath}`);

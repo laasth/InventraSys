@@ -12,7 +12,7 @@ const HOST = process.env.HOST || 'localhost';
 const PORT = process.env.PORT || 3000;
 
 const app = express();
-const db = new Database('inventory.db');
+const db = new Database('db/inventory.db');
 
 const isDev = process.env.NODE_ENV !== 'production';
 
