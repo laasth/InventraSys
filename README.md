@@ -143,6 +143,54 @@ export NODE_ENV=production
 node server.js
 ```
 
+### Docker Deployment
+
+The application can be run in a Docker container for easier deployment and consistent environments.
+
+#### Prerequisites
+- Docker installed on your system
+
+#### Building the Docker Image
+
+Build the Docker image using:
+
+```powershell
+docker build -t inventrasys .
+```
+
+This creates an optimized production build using a multi-stage build process to minimize the final image size.
+
+#### Running the Container
+
+Run the container with:
+
+```powershell
+docker run -d `
+  --name inventrasys `
+  -p 3000:3000 `
+  -v "${PWD}/db:/app/db" `
+  -v "${PWD}/logs:/app/logs" `
+  inventrasys
+```
+
+This command:
+- Runs the container in detached mode (`-d`)
+- Names the container "inventrasys"
+- Maps port 3000 on your host to port 3000 in the container
+- Creates persistent volumes for the database and logs
+- Uses the current directory's db and logs folders for data persistence
+
+The application will be available at `http://localhost:3000`
+
+#### Container Features
+
+- **Multi-stage Build**: Optimizes image size by separating build and runtime environments
+- **Data Persistence**: Database and logs are preserved through Docker volumes
+- **Production Ready**: Runs in production mode with optimized settings
+- **Security**: Minimal runtime dependencies for reduced attack surface
+- **Environment Variables**: Supports all standard configuration options
+- **Automatic Setup**: Creates necessary directories and initializes the database
+
 ## Project Structure
 
 ```
@@ -164,8 +212,10 @@ InventraSys/
 │   └── main.js           # Application entry point
 ├── public/                # Public static files
 ├── logs/                  # Application logs directory
-│   ├── combined.log      # All application logs
-│   └── error.log         # Error-level logs only
+│   ├── combined-*.log    # Daily rotated logs (all levels)
+│   ├── error-*.log       # Daily rotated error logs
+│   ├── combined-audit.json # Rotation tracking for combined logs
+│   └── error-audit.json    # Rotation tracking for error logs
 ├── server.js             # Express server with integrated Vite (dev) and static file serving (prod)
 ├── vite.config.js        # Vite configuration
 └── db/                   # Database directory
@@ -183,12 +233,17 @@ InventraSys/
   - Colorized console output
 
 - **Log Storage**
-  - Separate log files for different purposes:
-    - combined.log: All logs (info and above)
-    - error.log: Error-level logs only
+  - Separate log files with daily rotation:
+    - combined-YYYY-MM-DD.log: All logs (info and above)
+    - error-YYYY-MM-DD.log: Error-level logs only
+  - Automatic compression of old log files
+  - Size-based rotation (20MB per file)
+  - Configurable retention periods:
+    - Combined logs: 14 days
+    - Error logs: 30 days
   - Single-line JSON format for machine parsing
   - Automatic log directory creation
-  - Log rotation support
+  - Audit files to track rotations
 
 - **Comprehensive Context**
   - Request metadata (method, URL, params)

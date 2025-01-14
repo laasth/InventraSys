@@ -1,4 +1,5 @@
 import winston from 'winston';
+import 'winston-daily-rotate-file';
 import path from 'path';
 
 // Define log format for single-line output
@@ -29,20 +30,32 @@ const logger = winston.createLogger({
         singleLineFormat
       )
     }),
-    // Write all logs with level 'info' and below to combined.log
-    new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'combined.log'),
+    // Write all logs with level 'info' and below to rotating combined logs
+    new winston.transports.DailyRotateFile({
+      dirname: path.join(process.cwd(), 'logs'),
+      filename: 'combined-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '14d',
       format: winston.format.combine(
-        winston.format.json({ space: 0 }) // Compact JSON without pretty printing
-      )
+        winston.format.json({ space: 0 })
+      ),
+      zippedArchive: true,
+      auditFile: path.join(process.cwd(), 'logs', 'combined-audit.json')
     }),
-    // Write all logs with level 'error' and below to error.log
-    new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'error.log'),
+    // Write all logs with level 'error' and below to rotating error logs
+    new winston.transports.DailyRotateFile({
+      dirname: path.join(process.cwd(), 'logs'),
+      filename: 'error-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '20m',
+      maxFiles: '30d',
       level: 'error',
       format: winston.format.combine(
-        winston.format.json({ space: 0 }) // Compact JSON without pretty printing
-      )
+        winston.format.json({ space: 0 })
+      ),
+      zippedArchive: true,
+      auditFile: path.join(process.cwd(), 'logs', 'error-audit.json')
     })
   ]
 });
