@@ -3,6 +3,7 @@
   import { t } from './i18n/index.js';
   import { onMount } from 'svelte';
   import { formatDateTime } from './utils.js';
+  import { Logger } from './logger.js';
 
   let items = [];
   let filteredItems = [];
@@ -13,6 +14,7 @@
   let filterOption = 'all'; // 'all', '7days', '30days'
 
   onMount(async () => {
+    Logger.info('StockCount component mounted');
     if ($usernameStore) {
       await fetchItems();
     }
@@ -29,6 +31,7 @@
         return;
       }
       loading = true;
+      Logger.info('Fetching items for stock count');
       // Request all items and sort by last_stock_count (oldest first)
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?itemsPerPage=10000`, {
         headers: {
@@ -49,9 +52,10 @@
         return new Date(a.last_stock_count).getTime() - new Date(b.last_stock_count).getTime();
       });
       
+      Logger.info('Items fetched successfully', { itemCount: items.length });
       applyFilter();
     } catch (error) {
-      console.error('Error fetching items:', error);
+      Logger.error('Error fetching items', { error: error.toString() });
     } finally {
       loading = false;
     }
@@ -67,6 +71,7 @@
     }
 
     try {
+      Logger.info('Deleting item', { itemId: item.id, itemName: item.name });
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
         method: 'DELETE',
         headers: {
@@ -75,6 +80,7 @@
       });
 
       if (response.ok) {
+        Logger.info('Item deleted successfully', { itemId: item.id });
         message = $t('stockCount.deleted');
         // Remove item from array
         items = items.filter((_, index) => index !== currentItemIndex);
@@ -84,7 +90,7 @@
         }
       }
     } catch (error) {
-      console.error('Error deleting item:', error);
+      Logger.error('Error deleting item', { error: error.toString(), itemId: item.id });
       message = $t('stockCount.error');
     }
   }
@@ -96,11 +102,19 @@
     const newQuantity = parseInt(quantityInput);
     
     if (isNaN(newQuantity)) {
+      Logger.warn('Invalid quantity entered', { quantity: quantityInput, itemId: item.id });
       message = $t('stockCount.invalidQuantity');
       return;
     }
 
     try {
+      Logger.info('Updating stock count', { 
+        itemId: item.id, 
+        itemName: item.name,
+        oldQuantity: item.quantity,
+        newQuantity 
+      });
+
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
         method: 'PUT',
         headers: { 
@@ -121,17 +135,29 @@
       });
 
       if (response.ok) {
+        Logger.info('Stock count updated successfully', { 
+          itemId: item.id,
+          newQuantity 
+        });
         message = $t('stockCount.updated');
         // Move to next item
         if (currentItemIndex < items.length - 1) {
           currentItemIndex++;
           quantityInput = items[currentItemIndex].quantity.toString();
+          Logger.info('Moved to next item', { 
+            currentIndex: currentItemIndex,
+            totalItems: items.length 
+          });
         } else {
+          Logger.info('Stock count completed');
           message = $t('stockCount.completed');
         }
       }
     } catch (error) {
-      console.error('Error updating stock count:', error);
+      Logger.error('Error updating stock count', { 
+        error: error.toString(),
+        itemId: item.id 
+      });
       message = $t('stockCount.error');
     }
   }
@@ -141,14 +167,20 @@
     
     // Use current quantity as the update
     quantityInput = items[currentItemIndex].quantity.toString();
+    Logger.info('Confirming current quantity', {
+      itemId: items[currentItemIndex].id,
+      quantity: quantityInput
+    });
     updateStockCount();
   }
 
   function goToInventory() {
     currentPage.set('inventory');
+    Logger.info('Navigated back to inventory');
   }
 
   function applyFilter() {
+    Logger.info('Applying filter', { filterOption });
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -166,6 +198,12 @@
       return true;
     });
 
+    Logger.info('Filter applied', { 
+      filterOption,
+      totalItems: items.length,
+      filteredItems: filteredItems.length 
+    });
+
     // Reset current index when filter changes
     currentItemIndex = 0;
   }
@@ -174,6 +212,7 @@
   $: quantityInput = currentItem?.quantity?.toString() || '';
 </script>
 
+<!-- Template section remains unchanged -->
 <main>
   <div class="header">
     <div class="title-container">

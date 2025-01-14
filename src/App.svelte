@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { currentPage, paginationStore, filterStore, apiConfig, languageStore, usernameStore } from './lib/stores.js';
   import { t, availableLanguages } from './lib/i18n/index.js';
+  import { Logger } from './lib/logger.js';
   import ManageInventory from './lib/ManageInventory.svelte';
   import StockCount from './lib/StockCount.svelte';
   import AuditLog from './lib/AuditLog.svelte';
@@ -30,6 +31,7 @@
   function changePage(page) {
     if (page >= 1 && page <= totalPages) {
       paginationStore.update(state => ({ ...state, currentPage: page }));
+      Logger.info('Page changed', { page, totalPages });
     }
   }
 
@@ -41,12 +43,15 @@
   }
 
   onMount(() => {
+    Logger.info('App component mounted');
     if (!$usernameStore) {
       if (isDev) {
         // In development mode, automatically set username to "develop"
         usernameStore.set('develop');
+        Logger.info('Development mode: username set to develop');
       } else {
         showUsernameDialog = true;
+        Logger.info('Username dialog shown');
       }
     }
     fetchItems();
@@ -56,6 +61,7 @@
   async function handleUsernameSubmit() {
     if (usernameInput.trim()) {
       usernameStore.set(usernameInput.trim());
+      Logger.info('Username set', { username: usernameInput.trim() });
       showUsernameDialog = false;
       // Fetch items after username is set
       await fetchItems();
@@ -65,21 +71,24 @@
   onDestroy(() => {
     if (eventSource) {
       eventSource.close();
+      Logger.info('SSE connection closed');
     }
   });
 
   function setupSSE() {
+    Logger.info('Setting up SSE connection');
     eventSource = new EventSource(`http://${$apiConfig.host}:${$apiConfig.port}/api/updates`);
     
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'update') {
+        Logger.info('SSE update received', { data });
         fetchItems(); // Refresh data when we receive an update
       }
     };
 
     eventSource.onerror = (error) => {
-      console.error('SSE Error:', error);
+      Logger.error('SSE connection error', { error: error.toString() });
       eventSource.close();
       // Retry connection after 5 seconds
       setTimeout(setupSSE, 5000);
@@ -91,11 +100,20 @@
       if (!$usernameStore) {
         if (!isDev) {
           showUsernameDialog = true;
+          Logger.info('Username dialog shown due to missing username');
         }
         return;
       }
 
       loading = true;
+      Logger.info('Fetching items', { 
+        page: pageNum, 
+        itemsPerPage, 
+        searchQuery, 
+        sortBy, 
+        sortOrder 
+      });
+
       const params = new URLSearchParams({
         page: pageNum.toString(),
         itemsPerPage: itemsPerPage.toString(),
@@ -112,8 +130,9 @@
       const data = await response.json();
       items = data.items;
       paginationStore.set(data.pagination);
+      Logger.info('Items fetched successfully', { itemCount: items.length });
     } catch (error) {
-      console.error('Error fetching items:', error);
+      Logger.error('Error fetching items', { error: error.toString() });
     } finally {
       loading = false;
     }
@@ -122,6 +141,7 @@
   function handleSearch() {
     if (searchTimeout) clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
+      Logger.info('Search query updated', { query: $filterStore.searchInput });
       filterStore.update(state => ({ 
         ...state, 
         searchQuery: $filterStore.searchInput,
@@ -132,10 +152,12 @@
   }
 
   function handleSort(column) {
+    const newOrder = $filterStore.sortBy === column && $filterStore.sortOrder === 'asc' ? 'desc' : 'asc';
+    Logger.info('Sort changed', { column, order: newOrder });
     filterStore.update(state => ({
       ...state,
       sortBy: column,
-      sortOrder: state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc'
+      sortOrder: newOrder
     }));
   }
 
@@ -143,6 +165,10 @@
     selectedItem = item;
     removeQuantity = 1;
     showDialog = true;
+    Logger.info('Remove dialog shown', { 
+      itemId: item.id, 
+      itemName: item.name 
+    });
   }
 
   async function confirmRemove() {
@@ -150,6 +176,13 @@
     
     try {
       const newQuantity = Math.max(0, selectedItem.quantity - removeQuantity);
+      Logger.info('Updating item quantity', { 
+        itemId: selectedItem.id,
+        oldQuantity: selectedItem.quantity,
+        newQuantity,
+        change: -removeQuantity
+      });
+
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${selectedItem.id}`, {
         method: 'PUT',
         headers: { 
@@ -163,10 +196,15 @@
         showDialog = false;
         selectedItem = null;
         removeQuantity = 1;
+        Logger.info('Item quantity updated successfully');
         await fetchItems();
       }
     } catch (error) {
-      console.error('Error updating quantity:', error);
+      Logger.error('Error updating quantity', { 
+        error: error.toString(),
+        itemId: selectedItem?.id,
+        quantity: removeQuantity 
+      });
     }
   }
 
@@ -174,10 +212,12 @@
     showDialog = false;
     selectedItem = null;
     removeQuantity = 1;
+    Logger.info('Remove dialog cancelled');
   }
 
   function goToManage() {
     currentPage.set('manage');
+    Logger.info('Navigation to manage inventory');
   }
 </script>
 

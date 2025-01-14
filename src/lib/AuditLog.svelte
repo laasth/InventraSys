@@ -5,6 +5,7 @@
   import { t } from './i18n/index.js';
   import { formatDateTime } from './utils.js';
   import { onMount } from 'svelte';
+  import { Logger } from './logger.js';
 
   let logs = [];
   let loading = false;
@@ -18,12 +19,14 @@
   $: pages = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   onMount(async () => {
+    Logger.info('AuditLog component mounted');
     await fetchLogs();
   });
 
   async function fetchLogs() {
     try {
       loading = true;
+      Logger.info('Fetching audit logs', { page: pageNum, itemsPerPage });
       const params = new URLSearchParams({
         page: pageNum.toString(),
         itemsPerPage: itemsPerPage.toString()
@@ -33,8 +36,9 @@
       const data = await response.json();
       logs = data.logs;
       paginationStore.set(data.pagination);
+      Logger.info('Audit logs fetched successfully', { logCount: logs.length });
     } catch (error) {
-      console.error('Error fetching audit logs:', error);
+      Logger.error('Error fetching audit logs', { error: error.toString() });
     } finally {
       loading = false;
     }
@@ -42,6 +46,7 @@
 
   function changePage(page) {
     if (page >= 1 && page <= totalPages) {
+      Logger.info('Audit log page changed', { page, totalPages });
       paginationStore.update(state => ({ ...state, currentPage: page }));
     }
   }
@@ -79,6 +84,7 @@
       
       return html;
     } catch (error) {
+      Logger.warn('Error formatting value', { error: error.toString(), value });
       return escapeHtml(String(value));
     }
   }
@@ -86,18 +92,26 @@
   function showDetails(log) {
     selectedLog = log;
     showDetailsDialog = true;
+    Logger.info('Showing audit log details', { 
+      logId: log.id,
+      action: log.action,
+      username: log.username 
+    });
   }
 
   function closeDetails() {
+    Logger.info('Closed audit log details', { logId: selectedLog?.id });
     showDetailsDialog = false;
     selectedLog = null;
   }
 
   function goToInventory() {
     currentPage.set('manage');
+    Logger.info('Navigated back to inventory');
   }
 </script>
 
+<!-- Template section remains unchanged -->
 <main>
   <div class="header">
     <div class="title-container">

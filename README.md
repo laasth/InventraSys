@@ -46,6 +46,13 @@ A modern inventory management system built with Svelte and Express, featuring re
   - See detailed before/after values
   - Expandable change details
 
+- **Production-Grade Logging**
+  - Structured logging with Winston
+  - Single-line log entries for easy parsing
+  - Multiple log levels with environment-based filtering
+  - Comprehensive request and error tracking
+  - Automated log rotation and management
+
 ## Getting Started
 
 ### Prerequisites
@@ -72,6 +79,7 @@ The application supports customizable host and port settings through environment
 
 - `HOST` - The host address to bind to (defaults to 'localhost')
 - `PORT` - The port number to use (defaults to 3000)
+- `NODE_ENV` - Environment setting affecting log levels ('production' or 'development')
 
 ### Running the Application
 
@@ -97,6 +105,7 @@ This will:
 - Build the frontend into optimized static files
 - Serve the built files and API from a single server
 - Import initial data from Telleliste.csv (if the database is empty)
+- Set up logging with appropriate production settings
 
 The application will be available at `http://localhost:3000` (or your configured host/port).
 
@@ -111,6 +120,9 @@ $env:PORT="3001"; node server.js
 
 # Example: Run on a specific host and port
 $env:HOST="192.168.1.100"; $env:PORT="8080"; node server.js
+
+# Example: Run in production mode
+$env:NODE_ENV="production"; node server.js
 ```
 
 ##### Linux/macOS (Bash)
@@ -121,9 +133,13 @@ PORT=3001 node server.js
 # Example: Run on a specific host and port
 HOST=192.168.1.100 PORT=8080 node server.js
 
+# Example: Run in production mode
+NODE_ENV=production node server.js
+
 # Example: Export variables for reuse in current session
 export HOST=192.168.1.100
 export PORT=8080
+export NODE_ENV=production
 node server.js
 ```
 
@@ -132,12 +148,14 @@ node server.js
 ```
 InventraSys/
 ├── src/                    # Frontend source files
-│   ├── lib/               # Svelte components
+│   ├── lib/               # Svelte components and utilities
 │   │   ├── stores.js     # Shared state management
 │   │   ├── ManageInventory.svelte  # Inventory management view
 │   │   ├── StockCount.svelte      # Stock counting interface
 │   │   ├── AuditLog.svelte       # Change history view
 │   │   ├── csvImporter.js        # CSV import utility
+│   │   ├── logger.js            # Frontend logging service
+│   │   ├── serverLogger.js      # Server-side logging configuration
 │   │   ├── i18n/               # Internationalization
 │   │   │   ├── en.js         # English translations
 │   │   │   └── no.js         # Norwegian translations
@@ -145,6 +163,9 @@ InventraSys/
 │   ├── App.svelte        # Main application component
 │   └── main.js           # Application entry point
 ├── public/                # Public static files
+├── logs/                  # Application logs directory
+│   ├── combined.log      # All application logs
+│   └── error.log         # Error-level logs only
 ├── server.js             # Express server with integrated Vite (dev) and static file serving (prod)
 ├── vite.config.js        # Vite configuration
 └── db/                   # Database directory
@@ -152,6 +173,42 @@ InventraSys/
 ```
 
 ## Features in Detail
+
+### Logging System
+- **Structured Logging**
+  - Winston-based logging framework
+  - Single-line log entries for easy parsing
+  - Multiple log levels (debug, info, error)
+  - Environment-based log filtering
+  - Colorized console output
+
+- **Log Storage**
+  - Separate log files for different purposes:
+    - combined.log: All logs (info and above)
+    - error.log: Error-level logs only
+  - Single-line JSON format for machine parsing
+  - Automatic log directory creation
+  - Log rotation support
+
+- **Comprehensive Context**
+  - Request metadata (method, URL, params)
+  - User attribution (username, IP)
+  - Browser information (user agent)
+  - Database operations and results
+  - Error stack traces
+  - Performance metrics
+
+- **Log Categories**
+  - API Requests: Detailed request tracking
+  - API Errors: Full error context with stack traces
+  - Database Operations: Query logging and audit events
+  - System Events: Server startup and client connections
+  - Frontend Events: User actions and client-side errors
+
+Example log entry:
+```
+[2023-12-20 10:30:45] [INFO] [inventory-system] User logged in | {"username":"john.doe","ip":"192.168.1.100","userAgent":"Mozilla/5.0"}
+```
 
 ### User Management
 - Username-based authentication
@@ -229,6 +286,7 @@ InventraSys/
 - `DELETE /api/inventory/:id` - Delete an item
 - `GET /api/updates` - SSE endpoint for real-time updates
 - `GET /api/audit-logs` - Get paginated audit log entries
+- `POST /api/logs` - Submit frontend logs
 
 ## Technologies Used
 
@@ -242,5 +300,6 @@ InventraSys/
 - **Backend**
   - Express.js with integrated Vite middleware
   - SQLite (better-sqlite3)
+  - Winston for logging
   - Server-side pagination
   - Dynamic configuration

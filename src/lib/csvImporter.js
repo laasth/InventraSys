@@ -34,7 +34,6 @@ function importCsvData(dbPath, csvPath) {
     // Check if table is empty
     const result = db.prepare('SELECT COUNT(*) as count FROM inventory').get();
     if (result && typeof result === 'object' && result !== null && 'count' in result && typeof result.count === 'number' && result.count > 0) {
-      console.log('Database already contains data, skipping import');
       return;
     }
 
@@ -66,8 +65,6 @@ function importCsvData(dbPath, csvPath) {
         });
       }
     })();
-
-    console.log('CSV data imported successfully');
   } catch (error) {
     console.error('Error importing CSV data:', error);
   }
@@ -78,6 +75,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dbPath = process.argv[2] || 'db/inventory.db';
   const csvPath = process.argv[3] || 'Telleliste.csv';
   
-  console.log(`Importing CSV data from ${csvPath} into database ${dbPath}`);
   importCsvData(dbPath, csvPath);
 }

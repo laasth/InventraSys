@@ -5,12 +5,20 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import cors from 'cors';
+import fs from 'fs';
+import { logger, logAPIRequest, logAPIError, logDBOperation, logSystemEvent } from './src/lib/serverLogger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const HOST = process.env.HOST || 'localhost';
 const PORT = process.env.PORT || 3000;
+
+// Create logs directory if it doesn't exist
+const logsDir = path.join(process.cwd(), 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir);
+}
 
 const app = express();
 const db = new Database('db/inventory.db');
@@ -34,7 +42,9 @@ async function setupVite() {
 }
 
 // Initialize Vite
-setupVite().catch(console.error);
+setupVite().catch((error) => {
+  logger.error('Failed to initialize Vite', { error: error.toString(), stack: error.stack });
+});
 
 // Enable CORS
 app.use(cors({
@@ -59,34 +69,53 @@ function getPaginatedData(page = 1, itemsPerPage = 25, searchQuery = '', sortBy 
     ? [`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`]
     : [];
 
-  // Get total count
-  const countStmt = db.prepare(`
-    SELECT COUNT(*) as count 
-    FROM inventory 
-    ${searchCondition}
-  `);
-  const { count } = countStmt.get(...searchParams);
+  try {
+    // Get total count
+    const countStmt = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM inventory 
+      ${searchCondition}
+    `);
+    const { count } = countStmt.get(...searchParams);
 
-  // Get paginated results
-  const stmt = db.prepare(`
-    SELECT * 
-    FROM inventory 
-    ${searchCondition}
-    ORDER BY ${sortBy} ${sortOrder}
-    LIMIT ? OFFSET ?
-  `);
-  
-  const items = stmt.all(...searchParams, itemsPerPage, offset);
+    // Get paginated results
+    const stmt = db.prepare(`
+      SELECT * 
+      FROM inventory 
+      ${searchCondition}
+      ORDER BY ${sortBy} ${sortOrder}
+      LIMIT ? OFFSET ?
+    `);
+    
+    const items = stmt.all(...searchParams, itemsPerPage, offset);
 
-  return {
-    items,
-    pagination: {
-      currentPage: page,
+    logDBOperation('query', {
+      operation: 'getPaginatedData',
+      page,
       itemsPerPage,
-      totalItems: count,
-      totalPages: Math.ceil(count / itemsPerPage)
-    }
-  };
+      searchQuery,
+      sortBy,
+      sortOrder,
+      resultCount: items.length
+    });
+
+    return {
+      items,
+      pagination: {
+        currentPage: page,
+        itemsPerPage,
+        totalItems: count,
+        totalPages: Math.ceil(count / itemsPerPage)
+      }
+    };
+  } catch (error) {
+    logDBOperation('error', {
+      operation: 'getPaginatedData',
+      error: error.toString(),
+      stack: error.stack
+    });
+    throw error;
+  }
 }
 
 // SSE endpoint for real-time updates
@@ -95,33 +124,48 @@ app.get('/api/updates', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
-  // Send initial data
-  const data = JSON.stringify({ type: 'update', count: db.prepare('SELECT COUNT(*) as count FROM inventory').get().count });
-  res.write(`data: ${data}\n\n`);
+  try {
+    // Send initial data
+    const count = db.prepare('SELECT COUNT(*) as count FROM inventory').get().count;
+    const data = JSON.stringify({ type: 'update', count });
+    res.write(`data: ${data}\n\n`);
 
-  // Add client to list
-  const clientId = Date.now();
-  const newClient = {
-    id: clientId,
-    res
-  };
-  clients.push(newClient);
+    // Add client to list
+    const clientId = Date.now();
+    const newClient = {
+      id: clientId,
+      res
+    };
+    clients.push(newClient);
 
-  // Remove client on connection close
-  req.on('close', () => {
-    clients = clients.filter(client => client.id !== clientId);
-  });
+    logAPIRequest(req, 'SSE client connected', { clientId });
+
+    // Remove client on connection close
+    req.on('close', () => {
+      clients = clients.filter(client => client.id !== clientId);
+      logAPIRequest(req, 'SSE client disconnected', { clientId });
+    });
+  } catch (error) {
+    logAPIError(req, error, 'Error in SSE connection');
+    res.end();
+  }
 });
 
 // Function to notify all clients of updates
 function notifyClients() {
-  const data = JSON.stringify({ 
-    type: 'update',
-    count: db.prepare('SELECT COUNT(*) as count FROM inventory').get().count
-  });
-  clients.forEach(client => {
-    client.res.write(`data: ${data}\n\n`);
-  });
+  try {
+    const count = db.prepare('SELECT COUNT(*) as count FROM inventory').get().count;
+    const data = JSON.stringify({ 
+      type: 'update',
+      count
+    });
+    clients.forEach(client => {
+      client.res.write(`data: ${data}\n\n`);
+    });
+    logSystemEvent('Notified clients of update', { clientCount: clients.length });
+  } catch (error) {
+    logger.error('Error notifying clients', { error: error.toString(), stack: error.stack });
+  }
 }
 
 // Create tables if they don't exist
@@ -151,20 +195,36 @@ db.exec(`
 
 // Helper function to log audit events
 function logAuditEvent(username, action, oldValue, newValue) {
-  const stmt = db.prepare(`
-    INSERT INTO audit_log (username, action, old_value, new_value)
-    VALUES (@username, @action, @oldValue, @newValue)
-  `);
-  
-  stmt.run({
-    username,
-    action,
-    oldValue: oldValue ? JSON.stringify(oldValue) : null,
-    newValue: newValue ? JSON.stringify(newValue) : null
-  });
+  try {
+    const stmt = db.prepare(`
+      INSERT INTO audit_log (username, action, old_value, new_value)
+      VALUES (@username, @action, @oldValue, @newValue)
+    `);
+    
+    stmt.run({
+      username,
+      action,
+      oldValue: oldValue ? JSON.stringify(oldValue) : null,
+      newValue: newValue ? JSON.stringify(newValue) : null
+    });
+
+    logDBOperation('audit', {
+      username,
+      action,
+      oldValue,
+      newValue
+    });
+  } catch (error) {
+    logger.error('Error logging audit event', {
+      error: error.toString(),
+      stack: error.stack,
+      username,
+      action
+    });
+    throw error;
+  }
 }
 
-// Get items with pagination
 // Get audit logs with pagination
 app.get('/api/audit-logs', (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -172,6 +232,8 @@ app.get('/api/audit-logs', (req, res) => {
   const offset = (page - 1) * itemsPerPage;
 
   try {
+    logAPIRequest(req, 'Fetching audit logs', { page, itemsPerPage });
+
     // Get total count
     const countStmt = db.prepare('SELECT COUNT(*) as count FROM audit_log');
     const { count } = countStmt.get();
@@ -215,26 +277,33 @@ app.get('/api/audit-logs', (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching audit logs:', error);
+    logAPIError(req, error, 'Error fetching audit logs');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 app.get('/api/inventory', (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const itemsPerPage = parseInt(req.query.itemsPerPage) || 25;
-  const searchQuery = req.query.searchQuery || '';
-  const sortBy = req.query.sortBy || 'part_number';
-  const sortOrder = (req.query.sortOrder || 'asc').toUpperCase();
-  
-  // Validate sort column to prevent SQL injection
-  const validColumns = ['part_number', 'name', 'description', 'location', 'purchase_price', 'sale_price', 'quantity'];
-  if (!validColumns.includes(sortBy)) {
-    return res.status(400).json({ error: 'Invalid sort column' });
-  }
+  try {
+    logAPIRequest(req, 'Fetching inventory items');
 
-  const result = getPaginatedData(page, itemsPerPage, searchQuery, sortBy, sortOrder);
-  res.json(result);
+    const page = parseInt(req.query.page) || 1;
+    const itemsPerPage = parseInt(req.query.itemsPerPage) || 25;
+    const searchQuery = req.query.searchQuery || '';
+    const sortBy = req.query.sortBy || 'part_number';
+    const sortOrder = (req.query.sortOrder || 'asc').toUpperCase();
+    
+    // Validate sort column to prevent SQL injection
+    const validColumns = ['part_number', 'name', 'description', 'location', 'purchase_price', 'sale_price', 'quantity'];
+    if (!validColumns.includes(sortBy)) {
+      return res.status(400).json({ error: 'Invalid sort column' });
+    }
+
+    const result = getPaginatedData(page, itemsPerPage, searchQuery, sortBy, sortOrder);
+    res.json(result);
+  } catch (error) {
+    logAPIError(req, error, 'Error fetching inventory items');
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Validation helper functions
@@ -254,8 +323,6 @@ function validateInventoryData(data) {
   if (typeof data.sale_price !== 'number' || isNaN(data.sale_price)) errors.push('Invalid sale_price');
   if (typeof data.quantity !== 'number' || !Number.isInteger(data.quantity)) errors.push('Invalid quantity');
   
-  // Datetime fields are handled by SQLite, no validation needed
-  
   return errors;
 }
 
@@ -272,6 +339,8 @@ app.post('/api/inventory', (req, res) => {
   }
 
   try {
+    logAPIRequest(req, 'Adding new inventory item');
+
     const data = {
       part_number: req.body.part_number === null ? null : String(req.body.part_number || ''),
       name: req.body.name === null ? null : String(req.body.name || ''),
@@ -305,7 +374,7 @@ app.post('/api/inventory', (req, res) => {
     notifyClients();
     res.json({ id: result.lastInsertRowid });
   } catch (error) {
-    console.error('Error in POST /api/inventory:', error);
+    logAPIError(req, error, 'Error adding inventory item');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -318,17 +387,12 @@ app.put('/api/inventory/:id', (req, res) => {
   }
 
   try {
-    console.log('PUT /api/inventory/:id - Request received:', {
-      id: req.params.id,
-      body: req.body,
-      last_stock_count: req.body.last_stock_count // Log the last_stock_count specifically
-    });
-
     const id = req.params.id;
     if (!validateId(id)) {
-      console.log('PUT /api/inventory/:id - Invalid ID format:', id);
       return res.status(400).json({ error: 'Invalid ID format' });
     }
+
+    logAPIRequest(req, 'Updating inventory item', { itemId: id });
 
     const data = {
       id: parseInt(id),
@@ -339,33 +403,19 @@ app.put('/api/inventory/:id', (req, res) => {
       purchase_price: Number(req.body.purchase_price || 0),
       sale_price: Number(req.body.sale_price || 0),
       quantity: parseInt(req.body.quantity || 0),
-      // Include last_stock_count from request body if provided
       last_stock_count: req.body.last_stock_count || null
     };
 
-    console.log('PUT /api/inventory/:id - Processing data:', {
-      ...data,
-      last_stock_count_received: req.body.last_stock_count,
-      last_stock_count_processed: data.last_stock_count
-    });
     const validationErrors = validateInventoryData(data);
     if (validationErrors.length > 0) {
-      console.log('PUT /api/inventory/:id - Validation errors:', {
-        errors: validationErrors,
-        data: data
-      });
       return res.status(400).json({ errors: validationErrors });
     }
 
     // Get current item data before update
-    console.log('PUT /api/inventory/:id - Fetching current item data for ID:', data.id);
     const currentItem = db.prepare('SELECT * FROM inventory WHERE id = ?').get(data.id);
     if (!currentItem) {
-      console.log('PUT /api/inventory/:id - Item not found:', data.id);
       return res.status(404).json({ error: 'Item not found' });
     }
-
-    console.log('PUT /api/inventory/:id - Current item before update:', currentItem);
 
     const stmt = db.prepare(`
       UPDATE inventory 
@@ -384,10 +434,8 @@ app.put('/api/inventory/:id', (req, res) => {
       WHERE id = @id
     `);
     
-    console.log('PUT /api/inventory/:id - Executing update query');
     const result = stmt.run(data);
     if (result.changes === 0) {
-      console.log('PUT /api/inventory/:id - No rows updated for ID:', data.id);
       return res.status(404).json({ error: 'Item not found' });
     }
     
@@ -399,19 +447,10 @@ app.put('/api/inventory/:id', (req, res) => {
       data
     );
     
-    console.log('PUT /api/inventory/:id - Update successful:', {
-      id: data.id,
-      changes: result.changes
-    });
-    
     notifyClients();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in PUT /api/inventory/:id:', {
-      error: error.message,
-      stack: error.stack,
-      data: data
-    });
+    logAPIError(req, error, 'Error updating inventory item');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -428,6 +467,8 @@ app.delete('/api/inventory/:id', (req, res) => {
     if (!validateId(id)) {
       return res.status(400).json({ error: 'Invalid ID format' });
     }
+
+    logAPIRequest(req, 'Deleting inventory item', { itemId: id });
 
     // Get item data before deletion for audit log
     const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(parseInt(id));
@@ -449,7 +490,28 @@ app.delete('/api/inventory/:id', (req, res) => {
     notifyClients();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error in DELETE /api/inventory/:id:', error);
+    logAPIError(req, error, 'Error deleting inventory item');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint to receive frontend logs
+app.post('/api/logs', (req, res) => {
+  try {
+    const logData = req.body;
+    const clientIP = req.headers['x-forwarded-for']?.split(',')[0].trim() || 
+                    req.socket?.remoteAddress || 
+                    'unknown';
+    
+    logger.info('Frontend log received', {
+      ...logData,
+      clientIP,
+      userAgent: req.headers['user-agent']
+    });
+    
+    res.sendStatus(200);
+  } catch (error) {
+    logAPIError(req, error, 'Error processing frontend log');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -465,6 +527,7 @@ app.use((req, res, next) => {
   }
 });
 
+// Start server
 app.listen(PORT, HOST, () => {
-  console.log(`Server running at http://${HOST}:${PORT}`);
+  logSystemEvent('Server started', { host: HOST, port: PORT, environment: isDev ? 'development' : 'production' });
 });

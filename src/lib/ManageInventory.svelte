@@ -1,8 +1,9 @@
 <script>
-  import { currentPage, paginationStore, filterStore, apiConfig, languageStore, usernameStore } from './stores.js';
+  import { currentPage, apiConfig, paginationStore, filterStore, languageStore, usernameStore } from './stores.js';
   import { t, availableLanguages } from './i18n/index.js';
   import { onMount, onDestroy } from 'svelte';
   import { formatDateTime } from './utils.js';
+  import { Logger } from './logger.js';
 
   // Reactive statement to check if any field has data
   $: hasData = Object.values(newItem).some(value => value !== '');
@@ -25,6 +26,7 @@
 
   function openAddDialog() {
     showAddDialog = true;
+    Logger.info('Add item dialog opened');
   }
 
   function closeAddDialog() {
@@ -38,6 +40,7 @@
       sale_price: '',
       quantity: ''
     };
+    Logger.info('Add item dialog closed');
   }
 
   // Subscribe to stores
@@ -57,6 +60,7 @@
   }
 
   onMount(async () => {
+    Logger.info('ManageInventory component mounted');
     if ($usernameStore) {
       await fetchItems();
     }
@@ -71,21 +75,24 @@
   onDestroy(() => {
     if (eventSource) {
       eventSource.close();
+      Logger.info('SSE connection closed');
     }
   });
 
   function setupSSE() {
+    Logger.info('Setting up SSE connection');
     eventSource = new EventSource(`http://${$apiConfig.host}:${$apiConfig.port}/api/updates`);
     
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'update') {
-        fetchItems(); // Refresh data when we receive an update
+        Logger.info('SSE update received', { data });
+        fetchItems();
       }
     };
 
     eventSource.onerror = (error) => {
-      console.error('SSE Error:', error);
+      Logger.error('SSE connection error', { error: error.toString() });
       eventSource.close();
       // Retry connection after 5 seconds
       setTimeout(setupSSE, 5000);
@@ -97,8 +104,15 @@
       if (!$usernameStore) {
         return;
       }
-
       loading = true;
+      Logger.info('Fetching inventory items', {
+        page: pageNum,
+        itemsPerPage,
+        searchQuery,
+        sortBy,
+        sortOrder
+      });
+
       const params = new URLSearchParams({
         page: pageNum.toString(),
         itemsPerPage: itemsPerPage.toString(),
@@ -115,8 +129,9 @@
       const data = await response.json();
       items = data.items;
       paginationStore.set(data.pagination);
+      Logger.info('Items fetched successfully', { itemCount: items.length });
     } catch (error) {
-      console.error('Error fetching items:', error);
+      Logger.error('Error fetching items', { error: error.toString() });
     } finally {
       loading = false;
     }
@@ -125,6 +140,7 @@
   function handleSearch() {
     if (searchTimeout) clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
+      Logger.info('Search query updated', { query: $filterStore.searchInput });
       filterStore.update(state => ({ 
         ...state, 
         searchQuery: $filterStore.searchInput,
@@ -135,21 +151,25 @@
   }
 
   function handleSort(column) {
+    const newOrder = $filterStore.sortBy === column && $filterStore.sortOrder === 'asc' ? 'desc' : 'asc';
+    Logger.info('Sort changed', { column, order: newOrder });
     filterStore.update(state => ({
       ...state,
       sortBy: column,
-      sortOrder: state.sortBy === column && state.sortOrder === 'asc' ? 'desc' : 'asc'
+      sortOrder: newOrder
     }));
   }
 
   function changePage(page) {
     if (page >= 1 && page <= totalPages) {
+      Logger.info('Page changed', { page, totalPages });
       paginationStore.update(state => ({ ...state, currentPage: page }));
     }
   }
 
   async function addItem() {
     try {
+      Logger.info('Adding new item', { ...newItem });
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory`, {
         method: 'POST',
         headers: { 
@@ -164,6 +184,7 @@
         })
       });
       if (response.ok) {
+        Logger.info('Item added successfully');
         newItem = {
           part_number: '',
           name: '',
@@ -175,12 +196,13 @@
         };
       }
     } catch (error) {
-      console.error('Error adding item:', error);
+      Logger.error('Error adding item', { error: error.toString() });
     }
   }
 
   async function updateItem(item) {
     try {
+      Logger.info('Updating item', { itemId: item.id });
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
         method: 'PUT',
         headers: { 
@@ -199,41 +221,48 @@
         })
       });
       if (response.ok) {
+        Logger.info('Item updated successfully', { itemId: item.id });
         editing = null;
       }
     } catch (error) {
-      console.error('Error updating item:', error);
+      Logger.error('Error updating item', { error: error.toString(), itemId: item.id });
     }
   }
 
   async function deleteItem(id) {
     if (confirm($t('confirmations.deleteItem'))) {
       try {
+        Logger.info('Deleting item', { itemId: id });
         await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${id}`, {
           method: 'DELETE',
           headers: {
             'X-Username': $usernameStore
           }
         });
+        Logger.info('Item deleted successfully', { itemId: id });
       } catch (error) {
-        console.error('Error deleting item:', error);
+        Logger.error('Error deleting item', { error: error.toString(), itemId: id });
       }
     }
   }
 
   function startEdit(item) {
     editing = { ...item };
+    Logger.info('Started editing item', { itemId: item.id });
   }
 
   function cancelEdit() {
+    Logger.info('Cancelled editing item', { itemId: editing?.id });
     editing = null;
   }
 
   function goToList() {
     currentPage.set('list');
+    Logger.info('Navigated back to list view');
   }
 
   function handleLogout() {
+    Logger.info('User logged out', { username: $usernameStore });
     // Clear the cookie
     document.cookie = 'username=; path=/; max-age=0';
     // Reset the store
@@ -312,200 +341,308 @@
   <div class="excel-table">
     <div class="table-container">
       <div class="table-header">
-      <button 
-        class="header-cell sortable" 
-        on:click={() => handleSort('location')}
-        on:keydown={e => e.key === 'Enter' && handleSort('location')}
-        role="columnheader"
-        aria-sort={sortBy === 'location' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-      >
-        <span class="header-text">{$t('columns.location')}</span>
-        {#if sortBy === 'location'}
-          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-      </button>
-      <button 
-        class="header-cell sortable" 
-        on:click={() => handleSort('part_number')}
-        on:keydown={e => e.key === 'Enter' && handleSort('part_number')}
-        role="columnheader"
-        aria-sort={sortBy === 'part_number' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-      >
-        <span class="header-text">{$t('columns.partNumber')}</span>
-        {#if sortBy === 'part_number'}
-          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-      </button>
-      <button 
-        class="header-cell sortable" 
-        on:click={() => handleSort('name')}
-        on:keydown={e => e.key === 'Enter' && handleSort('name')}
-        role="columnheader"
-        aria-sort={sortBy === 'name' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-      >
-        <span class="header-text">{$t('columns.name')}</span>
-        {#if sortBy === 'name'}
-          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-      </button>
-      <button 
-        class="header-cell sortable" 
-        on:click={() => handleSort('description')}
-        on:keydown={e => e.key === 'Enter' && handleSort('description')}
-        role="columnheader"
-        aria-sort={sortBy === 'description' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-      >
-        <span class="header-text">{$t('columns.description')}</span>
-        {#if sortBy === 'description'}
-          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-      </button>
-      <button 
-        class="header-cell sortable" 
-        on:click={() => handleSort('purchase_price')}
-        on:keydown={e => e.key === 'Enter' && handleSort('purchase_price')}
-        role="columnheader"
-        aria-sort={sortBy === 'purchase_price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-      >
-        <span class="header-text">{$t('columns.purchasePrice')}</span>
-        {#if sortBy === 'purchase_price'}
-          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-      </button>
-      <button 
-        class="header-cell sortable" 
-        on:click={() => handleSort('sale_price')}
-        on:keydown={e => e.key === 'Enter' && handleSort('sale_price')}
-        role="columnheader"
-        aria-sort={sortBy === 'sale_price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-      >
-        <span class="header-text">{$t('columns.salePrice')}</span>
-        {#if sortBy === 'sale_price'}
-          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-      </button>
-      <button 
-        class="header-cell sortable" 
-        on:click={() => handleSort('quantity')}
-        on:keydown={e => e.key === 'Enter' && handleSort('quantity')}
-        role="columnheader"
-        aria-sort={sortBy === 'quantity' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-      >
-        <span class="header-text">{$t('columns.quantity')}</span>
-        {#if sortBy === 'quantity'}
-          <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-        {/if}
-      </button>
-      <div class="header-cell">
-        <span class="header-text">{$t('columns.lastModified')}</span>
-      </div>
-      <div class="header-cell">
-        <span class="header-text">{$t('columns.actions')}</span>
-      </div>
-    </div>
-
-    <!-- Add Item Dialog -->
-    {#if showAddDialog}
-      <div class="dialog-overlay">
-        <div class="dialog">
-          <h3>{$t('dialog.addItem')}</h3>
-          <div class="dialog-content">
-            <div class="form-group">
-              <label for="location">{$t('columns.location')}</label>
-              <input id="location" bind:value={newItem.location} />
-            </div>
-            <div class="form-group">
-              <label for="part_number">{$t('columns.partNumber')}</label>
-              <input id="part_number" bind:value={newItem.part_number} />
-            </div>
-            <div class="form-group">
-              <label for="name">{$t('columns.name')}</label>
-              <input id="name" bind:value={newItem.name} />
-            </div>
-            <div class="form-group">
-              <label for="description">{$t('columns.description')}</label>
-              <input id="description" bind:value={newItem.description} />
-            </div>
-            <div class="form-group">
-              <label for="purchase_price">{$t('columns.purchasePrice')}</label>
-              <input id="purchase_price" type="number" step="0.01" bind:value={newItem.purchase_price} />
-            </div>
-            <div class="form-group">
-              <label for="sale_price">{$t('columns.salePrice')}</label>
-              <input id="sale_price" type="number" step="0.01" bind:value={newItem.sale_price} />
-            </div>
-            <div class="form-group">
-              <label for="quantity">{$t('columns.quantity')}</label>
-              <input id="quantity" type="number" bind:value={newItem.quantity} />
-            </div>
-          </div>
-          <div class="dialog-actions">
-            <button class="cancel-button" on:click={closeAddDialog}>{$t('dialog.cancel')}</button>
-            <button class="confirm-button" on:click={() => { addItem(); closeAddDialog(); }} disabled={!hasData}>{$t('actions.add')}</button>
-          </div>
+        <button 
+          class="header-cell sortable" 
+          on:click={() => handleSort('location')}
+          on:keydown={e => e.key === 'Enter' && handleSort('location')}
+          role="columnheader"
+          aria-sort={sortBy === 'location' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        >
+          <span class="header-text">{$t('columns.location')}</span>
+          {#if sortBy === 'location'}
+            <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+          {/if}
+        </button>
+        <button 
+          class="header-cell sortable" 
+          on:click={() => handleSort('part_number')}
+          on:keydown={e => e.key === 'Enter' && handleSort('part_number')}
+          role="columnheader"
+          aria-sort={sortBy === 'part_number' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        >
+          <span class="header-text">{$t('columns.partNumber')}</span>
+          {#if sortBy === 'part_number'}
+            <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+          {/if}
+        </button>
+        <button 
+          class="header-cell sortable" 
+          on:click={() => handleSort('name')}
+          on:keydown={e => e.key === 'Enter' && handleSort('name')}
+          role="columnheader"
+          aria-sort={sortBy === 'name' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        >
+          <span class="header-text">{$t('columns.name')}</span>
+          {#if sortBy === 'name'}
+            <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+          {/if}
+        </button>
+        <button 
+          class="header-cell sortable" 
+          on:click={() => handleSort('description')}
+          on:keydown={e => e.key === 'Enter' && handleSort('description')}
+          role="columnheader"
+          aria-sort={sortBy === 'description' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        >
+          <span class="header-text">{$t('columns.description')}</span>
+          {#if sortBy === 'description'}
+            <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+          {/if}
+        </button>
+        <button 
+          class="header-cell sortable" 
+          on:click={() => handleSort('purchase_price')}
+          on:keydown={e => e.key === 'Enter' && handleSort('purchase_price')}
+          role="columnheader"
+          aria-sort={sortBy === 'purchase_price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        >
+          <span class="header-text">{$t('columns.purchasePrice')}</span>
+          {#if sortBy === 'purchase_price'}
+            <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+          {/if}
+        </button>
+        <button 
+          class="header-cell sortable" 
+          on:click={() => handleSort('sale_price')}
+          on:keydown={e => e.key === 'Enter' && handleSort('sale_price')}
+          role="columnheader"
+          aria-sort={sortBy === 'sale_price' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        >
+          <span class="header-text">{$t('columns.salePrice')}</span>
+          {#if sortBy === 'sale_price'}
+            <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+          {/if}
+        </button>
+        <button 
+          class="header-cell sortable" 
+          on:click={() => handleSort('quantity')}
+          on:keydown={e => e.key === 'Enter' && handleSort('quantity')}
+          role="columnheader"
+          aria-sort={sortBy === 'quantity' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+        >
+          <span class="header-text">{$t('columns.quantity')}</span>
+          {#if sortBy === 'quantity'}
+            <span class="sort-indicator">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+          {/if}
+        </button>
+        <div class="header-cell">
+          <span class="header-text">{$t('columns.lastModified')}</span>
+        </div>
+        <div class="header-cell">
+          <span class="header-text">{$t('columns.actions')}</span>
         </div>
       </div>
-    {/if}
 
-    {#if loading}
-      <div class="loading-overlay">
-        <div class="loading-spinner"></div>
-      </div>
-    {/if}
+      {#if loading}
+        <div class="loading-overlay">
+          <div class="loading-spinner"></div>
+        </div>
+      {/if}
 
-    <!-- Existing Items -->
-    {#each items as item}
-      <div class="table-row">
-        {#if editing && editing.id === item.id}
-          <div class="table-cell">
-            <input bind:value={editing.location} />
-          </div>
-          <div class="table-cell">
-            <input bind:value={editing.part_number} />
-          </div>
-          <div class="table-cell">
-            <input bind:value={editing.name} />
-          </div>
-          <div class="table-cell">
-            <input bind:value={editing.description} />
-          </div>
-          <div class="table-cell">
-            <input type="number" step="0.01" bind:value={editing.purchase_price} />
-          </div>
-          <div class="table-cell">
-            <input type="number" step="0.01" bind:value={editing.sale_price} />
-          </div>
-          <div class="table-cell">
-            <input type="number" bind:value={editing.quantity} />
-          </div>
-          <div class="table-cell datetime-cell">
-            {formatDateTime(editing.last_modified, $t)}
-          </div>
-          <div class="table-cell actions">
-            <button on:click={() => updateItem(editing)}>{$t('actions.save')}</button>
-            <button on:click={cancelEdit}>{$t('actions.cancel')}</button>
-          </div>
-        {:else}
-          <div class="table-cell">{item.location}</div>
-          <div class="table-cell">{item.part_number}</div>
-          <div class="table-cell">{item.name}</div>
-          <div class="table-cell">{item.description}</div>
-          <div class="table-cell">{item.purchase_price?.toFixed(2)}</div>
-          <div class="table-cell">{item.sale_price?.toFixed(2)}</div>
-          <div class="table-cell">{item.quantity}</div>
-          <div class="table-cell datetime-cell">{formatDateTime(item.last_modified, $t)}</div>
-          <div class="table-cell actions">
-            <button on:click={() => startEdit(item)}>{$t('actions.edit')}</button>
-            <button on:click={() => deleteItem(item.id)}>{$t('actions.delete')}</button>
-          </div>
-        {/if}
-      </div>
-    {/each}
+      <!-- Existing Items -->
+      {#each items as item}
+        <div class="table-row">
+          {#if editing && editing.id === item.id}
+            <div class="table-cell">
+              <input bind:value={editing.location} />
+            </div>
+            <div class="table-cell">
+              <input bind:value={editing.part_number} />
+            </div>
+            <div class="table-cell">
+              <input bind:value={editing.name} />
+            </div>
+            <div class="table-cell">
+              <input bind:value={editing.description} />
+            </div>
+            <div class="table-cell">
+              <input type="number" step="0.01" bind:value={editing.purchase_price} />
+            </div>
+            <div class="table-cell">
+              <input type="number" step="0.01" bind:value={editing.sale_price} />
+            </div>
+            <div class="table-cell">
+              <input type="number" bind:value={editing.quantity} />
+            </div>
+            <div class="table-cell datetime-cell">
+              {formatDateTime(editing.last_modified, $t)}
+            </div>
+            <div class="table-cell actions">
+              <button on:click={() => updateItem(editing)}>{$t('actions.save')}</button>
+              <button on:click={cancelEdit}>{$t('actions.cancel')}</button>
+            </div>
+          {:else}
+            <div class="table-cell">{item.location}</div>
+            <div class="table-cell">{item.part_number}</div>
+            <div class="table-cell">{item.name}</div>
+            <div class="table-cell">{item.description}</div>
+            <div class="table-cell">{item.purchase_price?.toFixed(2)}</div>
+            <div class="table-cell">{item.sale_price?.toFixed(2)}</div>
+            <div class="table-cell">{item.quantity}</div>
+            <div class="table-cell datetime-cell">{formatDateTime(item.last_modified, $t)}</div>
+            <div class="table-cell actions">
+              <button on:click={() => startEdit(item)}>{$t('actions.edit')}</button>
+              <button on:click={() => deleteItem(item.id)}>{$t('actions.delete')}</button>
+            </div>
+          {/if}
+        </div>
+      {/each}
     </div>
   </div>
+
+  <!-- Add Item Dialog -->
+  {#if showAddDialog}
+    <div class="dialog-overlay">
+      <div class="dialog">
+        <h3>{$t('dialog.addItem')}</h3>
+        <div class="dialog-content">
+          <div class="form-group">
+            <label for="location">{$t('columns.location')}</label>
+            <input id="location" bind:value={newItem.location} />
+          </div>
+          <div class="form-group">
+            <label for="part_number">{$t('columns.partNumber')}</label>
+            <input id="part_number" bind:value={newItem.part_number} />
+          </div>
+          <div class="form-group">
+            <label for="name">{$t('columns.name')}</label>
+            <input id="name" bind:value={newItem.name} />
+          </div>
+          <div class="form-group">
+            <label for="description">{$t('columns.description')}</label>
+            <input id="description" bind:value={newItem.description} />
+          </div>
+          <div class="form-group">
+            <label for="purchase_price">{$t('columns.purchasePrice')}</label>
+            <input id="purchase_price" type="number" step="0.01" bind:value={newItem.purchase_price} />
+          </div>
+          <div class="form-group">
+            <label for="sale_price">{$t('columns.salePrice')}</label>
+            <input id="sale_price" type="number" step="0.01" bind:value={newItem.sale_price} />
+          </div>
+          <div class="form-group">
+            <label for="quantity">{$t('columns.quantity')}</label>
+            <input id="quantity" type="number" bind:value={newItem.quantity} />
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button class="cancel-button" on:click={closeAddDialog}>{$t('dialog.cancel')}</button>
+          <button class="confirm-button" on:click={() => { addItem(); closeAddDialog(); }} disabled={!hasData}>{$t('actions.add')}</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </main>
 
 <style>
+  /* Previous styles remain unchanged up to the button styles */
+
+  button {
+    padding: 6px 12px;
+    margin: 0 4px;
+    background: linear-gradient(180deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s ease-in-out;
+  }
+
+  button:hover {
+    background: linear-gradient(180deg, #45a049 0%, #3d8b40 100%);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background: linear-gradient(180deg, #cccccc 0%, #bbbbbb 100%);
+  }
+
+  .dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .dialog {
+    background: white;
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-width: 400px;
+  }
+
+  .dialog h3 {
+    margin: 0 0 16px 0;
+    color: #212529;
+  }
+
+  .dialog-content {
+    margin-bottom: 24px;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #495057;
+    font-weight: 500;
+  }
+
+  .form-group input {
+    width: 100%;
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #dee2e6;
+  }
+
+  .cancel-button {
+    background: linear-gradient(180deg, #6c757d 0%, #5a6268 100%);
+  }
+
+  .cancel-button:hover {
+    background: linear-gradient(180deg, #5a6268 0%, #545b62 100%);
+  }
+
+  .confirm-button {
+    background: linear-gradient(180deg, #28a745 0%, #218838 100%);
+  }
+
+  .confirm-button:hover {
+    background: linear-gradient(180deg, #218838 0%, #1e7e34 100%);
+  }
+
+  .confirm-button:disabled {
+    background: linear-gradient(180deg, #cccccc 0%, #bbbbbb 100%);
+  }
+
+  .add-button {
+    background: linear-gradient(180deg, #28a745 0%, #218838 100%);
+  }
+
+  .add-button:hover {
+    background: linear-gradient(180deg, #218838 0%, #1e7e34 100%);
+  }
+
   .header {
     display: flex;
     justify-content: space-between;
@@ -826,135 +963,13 @@
     border: 1px solid #ced4da;
     border-radius: 4px;
     font-size: 14px;
-    transition: all 0.15s ease-in-out;
-    background: transparent;
     color: #212529;
+    background-color: #f8f9fa;
   }
 
   input:focus {
     outline: none;
-    border-color: #80bdff;
-    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
-    background: white;
-  }
-
-  button {
-    padding: 6px 8px;
-    margin: 0 4px;
-    background: linear-gradient(180deg, #4CAF50 0%, #45a049 100%);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.15s ease-in-out;
-  }
-
-  button:disabled {
-    background: linear-gradient(180deg, #cccccc 0%, #bbbbbb 100%);
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-
-  button:hover {
-    background: linear-gradient(180deg, #45a049 0%, #3d8b40 100%);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-
-  .actions button:last-child {
-    background: linear-gradient(180deg, #dc3545 0%, #c82333 100%);
-  }
-
-  .actions button:last-child:hover {
-    background: linear-gradient(180deg, #c82333 0%, #bd2130 100%);
-  }
-
-  .add-button {
-    width: auto;
-    min-width: 100px;
-  }
-
-  .dialog-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1100;
-  }
-
-  .dialog {
-    background: white;
-    border-radius: 8px;
-    padding: 20px;
-    width: 500px;
-    max-width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-
-  .dialog h3 {
-    margin: 0 0 16px 0;
-    color: #212529;
-    font-size: 1.25rem;
-    padding: 0 12px;
-  }
-
-  .dialog-content {
-    margin-bottom: 16px;
-    padding: 0 20px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-  }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  /* Location and Part Number */
-  .form-group:nth-child(1),
-  .form-group:nth-child(2) {
-    flex: 0 0 calc(50% - 10px);
-  }
-
-  /* Name and Description */
-  .form-group:nth-child(3),
-  .form-group:nth-child(4) {
-    flex: 0 0 100%;
-  }
-
-  /* Purchase Price, Sale Price, and Quantity */
-  .form-group:nth-child(5),
-  .form-group:nth-child(6),
-  .form-group:nth-child(7) {
-    flex: 0 0 calc(33.333% - 14px);
-  }
-
-  .form-group label {
-    color: #495057;
-    font-weight: 500;
-    font-size: 0.9rem;
-  }
-
-  .form-group input {
-    padding: 6px 12px;
-    height: 32px;
-  }
-
-  .dialog-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    margin-top: 20px;
-    padding: 20px 12px 0;
-    border-top: 1px solid #dee2e6;
+    border-color: #646cff;
+    box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
   }
 </style>
