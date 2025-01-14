@@ -482,7 +482,7 @@
             <div class="table-cell datetime-cell">{formatDateTime(item.last_modified, $t)}</div>
             <div class="table-cell actions">
               <button on:click={() => startEdit(item)}>{$t('actions.edit')}</button>
-              <button on:click={() => deleteItem(item.id)}>{$t('actions.delete')}</button>
+              <button class="delete-button" on:click={() => deleteItem(item.id)}>{$t('actions.delete')}</button>
             </div>
           {/if}
         </div>
@@ -633,6 +633,14 @@
 
   .confirm-button:disabled {
     background: linear-gradient(180deg, #cccccc 0%, #bbbbbb 100%);
+  }
+
+  .delete-button {
+    background: linear-gradient(180deg, #dc3545 0%, #c82333 100%);
+  }
+
+  .delete-button:hover {
+    background: linear-gradient(180deg, #c82333 0%, #bd2130 100%);
   }
 
   .add-button {
