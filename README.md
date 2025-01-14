@@ -4,6 +4,12 @@ A modern inventory management system built with Svelte and Express, featuring re
 
 ## Features
 
+- **User Management**
+  - Username-based authentication
+  - Persistent login with cookie storage
+  - Username display in main views
+  - Logout functionality in Manage Inventory
+
 - **Real-time Inventory Management**
   - Live updates using Server-Sent Events (SSE)
   - Add, edit, and delete inventory items
@@ -30,6 +36,12 @@ A modern inventory management system built with Svelte and Express, featuring re
   - Dedicated stock counting interface
   - CSV import functionality for bulk data management
   - Easy-to-use stock adjustment controls
+
+- **Audit Log**
+  - Track all inventory changes
+  - View who made changes and when
+  - See detailed before/after values
+  - Expandable change details
 
 ## Getting Started
 
@@ -121,6 +133,7 @@ InventraSys/
 │   │   ├── stores.js     # Shared state management
 │   │   ├── ManageInventory.svelte  # Inventory management view
 │   │   ├── StockCount.svelte      # Stock counting interface
+│   │   ├── AuditLog.svelte       # Change history view
 │   │   ├── csvImporter.js        # CSV import utility
 │   │   ├── i18n/               # Internationalization
 │   │   │   ├── en.js         # English translations
@@ -131,10 +144,18 @@ InventraSys/
 ├── public/                # Public static files
 ├── server.js             # Express server with integrated Vite (dev) and static file serving (prod)
 ├── vite.config.js        # Vite configuration
-└── inventory.db          # SQLite database
+└── db/                   # Database directory
+    └── inventory.db      # SQLite database
 ```
 
 ## Features in Detail
+
+### User Management
+- Username-based authentication
+- First-time login dialog
+- Username stored in cookie for persistence
+- Username displayed in main inventory list and manage inventory views
+- Logout functionality available in manage inventory view
 
 ### Inventory Management
 - View all inventory items in a table format
@@ -157,6 +178,15 @@ InventraSys/
 - 25 items per page for optimal performance
 - Maintains search and sort state during navigation
 
+### Audit Log
+- Comprehensive change tracking
+- View all modifications to inventory
+- See who made each change
+- Timestamp for each modification
+- Detailed before/after values
+- Expandable change details
+- Paginated history view
+
 ### Data Persistence
 - SQLite database for reliable data storage
 - Initial data import from CSV
@@ -169,6 +199,7 @@ InventraSys/
 - Dynamic API configuration
 - Loading state management
 - Language preference persistence
+- Username persistence with cookies
 
 ### Internationalization
 - Full support for English and Norwegian
@@ -194,6 +225,7 @@ InventraSys/
 - `PUT /api/inventory/:id` - Update an item
 - `DELETE /api/inventory/:id` - Delete an item
 - `GET /api/updates` - SSE endpoint for real-time updates
+- `GET /api/audit-logs` - Get paginated audit log entries
 
 ## Technologies Used
 
@@ -202,6 +234,7 @@ InventraSys/
   - Vite
   - SSE for real-time updates
   - Svelte stores for state management
+  - Cookie-based user persistence
 
 - **Backend**
   - Express.js with integrated Vite middleware

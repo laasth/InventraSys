@@ -123,7 +123,7 @@ function notifyClients() {
   });
 }
 
-// Create table if it doesn't exist
+// Create tables if they don't exist
 db.exec(`
   CREATE TABLE IF NOT EXISTS inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -136,10 +136,77 @@ db.exec(`
     quantity INTEGER DEFAULT 0,
     last_modified DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_stock_count DATETIME
-  )
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    inventory_id INTEGER,
+    username TEXT NOT NULL,
+    action TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (inventory_id) REFERENCES inventory(id)
+  );
 `);
 
+// Helper function to log audit events
+function logAuditEvent(username, action, inventoryId, oldValue, newValue) {
+  const stmt = db.prepare(`
+    INSERT INTO audit_log (username, action, inventory_id, old_value, new_value)
+    VALUES (@username, @action, @inventoryId, @oldValue, @newValue)
+  `);
+  
+  stmt.run({
+    username,
+    action,
+    inventoryId,
+    oldValue: oldValue ? JSON.stringify(oldValue) : null,
+    newValue: newValue ? JSON.stringify(newValue) : null
+  });
+}
+
 // Get items with pagination
+// Get audit logs with pagination
+app.get('/api/audit-logs', (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const itemsPerPage = parseInt(req.query.itemsPerPage) || 25;
+  const offset = (page - 1) * itemsPerPage;
+
+  try {
+    // Get total count
+    const countStmt = db.prepare('SELECT COUNT(*) as count FROM audit_log');
+    const { count } = countStmt.get();
+
+    // Get paginated results with inventory item details
+    const stmt = db.prepare(`
+      SELECT 
+        audit_log.*,
+        inventory.name as item_name,
+        inventory.part_number as item_part_number
+      FROM audit_log
+      LEFT JOIN inventory ON audit_log.inventory_id = inventory.id
+      ORDER BY audit_log.timestamp DESC
+      LIMIT ? OFFSET ?
+    `);
+    
+    const logs = stmt.all(itemsPerPage, offset);
+
+    res.json({
+      logs,
+      pagination: {
+        currentPage: page,
+        itemsPerPage,
+        totalItems: count,
+        totalPages: Math.ceil(count / itemsPerPage)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/api/inventory', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const itemsPerPage = parseInt(req.query.itemsPerPage) || 25;
@@ -186,6 +253,11 @@ function validateId(id) {
 
 // Add new item
 app.post('/api/inventory', (req, res) => {
+  const username = req.headers['x-username'];
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+
   try {
     const data = {
       part_number: req.body.part_number === null ? null : String(req.body.part_number || ''),
@@ -208,6 +280,16 @@ app.post('/api/inventory', (req, res) => {
     `);
     
     const result = stmt.run(data);
+    
+    // Log the audit event
+    logAuditEvent(
+      username,
+      'CREATE',
+      result.lastInsertRowid,
+      null,
+      data
+    );
+    
     notifyClients();
     res.json({ id: result.lastInsertRowid });
   } catch (error) {
@@ -218,6 +300,11 @@ app.post('/api/inventory', (req, res) => {
 
 // Update item
 app.put('/api/inventory/:id', (req, res) => {
+  const username = req.headers['x-username'];
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+
   try {
     console.log('PUT /api/inventory/:id - Request received:', {
       id: req.params.id,
@@ -292,6 +379,15 @@ app.put('/api/inventory/:id', (req, res) => {
       return res.status(404).json({ error: 'Item not found' });
     }
     
+    // Log the audit event
+    logAuditEvent(
+      username,
+      'UPDATE',
+      data.id,
+      currentItem,
+      data
+    );
+    
     console.log('PUT /api/inventory/:id - Update successful:', {
       id: data.id,
       changes: result.changes
@@ -311,18 +407,34 @@ app.put('/api/inventory/:id', (req, res) => {
 
 // Delete item
 app.delete('/api/inventory/:id', (req, res) => {
+  const username = req.headers['x-username'];
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+
   try {
     const id = req.params.id;
     if (!validateId(id)) {
       return res.status(400).json({ error: 'Invalid ID format' });
     }
 
+    // Get item data before deletion for audit log
+    const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(parseInt(id));
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
     const stmt = db.prepare('DELETE FROM inventory WHERE id = ?');
     const result = stmt.run(parseInt(id));
     
-    if (result.changes === 0) {
-      return res.status(404).json({ error: 'Item not found' });
-    }
+    // Log the audit event
+    logAuditEvent(
+      username,
+      'DELETE',
+      parseInt(id),
+      item,
+      null
+    );
     
     notifyClients();
     res.json({ success: true });

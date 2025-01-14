@@ -1,5 +1,5 @@
 <script>
-  import { currentPage, paginationStore, filterStore, apiConfig, languageStore } from './stores.js';
+  import { currentPage, paginationStore, filterStore, apiConfig, languageStore, usernameStore } from './stores.js';
   import { t, availableLanguages } from './i18n/index.js';
   import { onMount, onDestroy } from 'svelte';
   import { formatDateTime } from './utils.js';
@@ -56,10 +56,17 @@
     }
   }
 
-  onMount(() => {
-    fetchItems();
+  onMount(async () => {
+    if ($usernameStore) {
+      await fetchItems();
+    }
     setupSSE();
   });
+
+  // Watch for username changes
+  $: if ($usernameStore) {
+    fetchItems();
+  }
 
   onDestroy(() => {
     if (eventSource) {
@@ -87,6 +94,10 @@
 
   async function fetchItems() {
     try {
+      if (!$usernameStore) {
+        return;
+      }
+
       loading = true;
       const params = new URLSearchParams({
         page: pageNum.toString(),
@@ -96,7 +107,11 @@
         sortOrder
       });
 
-      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?${params}`);
+      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?${params}`, {
+        headers: {
+          'X-Username': $usernameStore
+        }
+      });
       const data = await response.json();
       items = data.items;
       paginationStore.set(data.pagination);
@@ -137,7 +152,10 @@
     try {
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Username': $usernameStore
+        },
         body: JSON.stringify({
           ...newItem,
           purchase_price: parseFloat(newItem.purchase_price),
@@ -165,7 +183,10 @@
     try {
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Username': $usernameStore
+        },
         body: JSON.stringify({
           id: item.id,
           part_number: item.part_number,
@@ -189,7 +210,10 @@
     if (confirm($t('confirmations.deleteItem'))) {
       try {
         await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${id}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: {
+            'X-Username': $usernameStore
+          }
         });
       } catch (error) {
         console.error('Error deleting item:', error);
@@ -208,11 +232,26 @@
   function goToList() {
     currentPage.set('list');
   }
+
+  function handleLogout() {
+    // Clear the cookie
+    document.cookie = 'username=; path=/; max-age=0';
+    // Reset the store
+    usernameStore.set(null);
+    // Go back to main page
+    currentPage.set('list');
+  }
 </script>
 
 <main>
   <div class="header">
-    <h2>{$t('header.title')}</h2>
+    <div class="title-container">
+      <div class="user-section">
+        <div class="username">{$usernameStore}</div>
+        <button class="logout-button" on:click={handleLogout}>{$t('dialog.logout')}</button>
+      </div>
+      <h2>{$t('header.title')}</h2>
+    </div>
     <div class="header-controls">
       <select 
         bind:value={$languageStore}
@@ -239,6 +278,7 @@
     <div class="left-controls">
       <button class="add-button" on:click={openAddDialog}>{$t('actions.add')}</button>
       <button class="stock-count-button" on:click={() => currentPage.set('stockCount')}>{$t('actions.stockCount')}</button>
+      <button class="audit-log-button" on:click={() => currentPage.set('auditLog')}>{$t('auditLog.viewAuditLog')}</button>
     </div>
     <div class="pagination">
       <span class="pagination-info">
@@ -473,6 +513,35 @@
     margin-bottom: 20px;
   }
 
+  .title-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .user-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .username {
+    font-size: 12px;
+    color: #6c757d;
+  }
+
+  .logout-button {
+    font-size: 12px;
+    padding: 2px 8px;
+    margin: 0;
+    background: linear-gradient(180deg, #dc3545 0%, #c82333 100%);
+  }
+
+  .logout-button:hover {
+    background: linear-gradient(180deg, #c82333 0%, #bd2130 100%);
+  }
+
   .header-controls {
     display: flex;
     gap: 16px;
@@ -538,6 +607,14 @@
 
   .stock-count-button:hover {
     background: linear-gradient(180deg, #138496 0%, #117a8b 100%);
+  }
+
+  .audit-log-button {
+    background: linear-gradient(180deg, #6f42c1 0%, #6610f2 100%);
+  }
+
+  .audit-log-button:hover {
+    background: linear-gradient(180deg, #6610f2 0%, #520dc2 100%);
   }
 
   .pagination {

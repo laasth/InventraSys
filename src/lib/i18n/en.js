@@ -57,12 +57,33 @@ export default {
     removeUnits: 'How many units do you want to remove from {name}?',
     cancel: 'Cancel',
     confirm: 'Confirm',
-    addItem: 'Add New Item'
+    addItem: 'Add New Item',
+    welcome: 'Welcome to InventraSys',
+    enterUsername: 'Please enter your username to continue',
+    usernamePlaceholder: 'Enter username',
+    submit: 'Submit',
+    logout: 'Logout'
   },
   time: {
     justNow: 'Just now',
     minutesAgo: '{minutes} minutes ago',
     hoursAgo: '{hours} hours ago',
     daysAgo: '{days} days ago'
+  },
+  auditLog: {
+    title: 'Audit Log',
+    action: 'Action',
+    username: 'Username',
+    timestamp: 'Timestamp',
+    itemName: 'Item Name',
+    partNumber: 'Part Number',
+    oldValue: 'Old Value',
+    newValue: 'New Value',
+    noLogs: 'No audit logs found',
+    viewAuditLog: 'View Audit Log',
+    description: 'This log shows all changes made to the inventory, including who made the changes and when.',
+    viewDetails: 'View Details',
+    closeDetails: 'Close',
+    valueDetails: 'Change Details'
   }
 };

@@ -1,5 +1,5 @@
 <script>
-  import { currentPage, apiConfig } from './stores.js';
+  import { currentPage, apiConfig, usernameStore } from './stores.js';
   import { t } from './i18n/index.js';
   import { onMount } from 'svelte';
   import { formatDateTime } from './utils.js';
@@ -11,14 +11,28 @@
   let message = '';
 
   onMount(async () => {
-    await fetchItems();
+    if ($usernameStore) {
+      await fetchItems();
+    }
   });
+
+  // Watch for username changes
+  $: if ($usernameStore) {
+    fetchItems();
+  }
 
   async function fetchItems() {
     try {
+      if (!$usernameStore) {
+        return;
+      }
       loading = true;
       // Request all items and sort by last_stock_count (oldest first)
-      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?itemsPerPage=10000`);
+      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?itemsPerPage=10000`, {
+        headers: {
+          'X-Username': $usernameStore
+        }
+      });
       const data = await response.json();
       // Sort items: null last_stock_count first, then by oldest date
       items = data.items.sort((a, b) => {
@@ -50,7 +64,10 @@
 
     try {
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'X-Username': $usernameStore
+        }
       });
 
       if (response.ok) {
@@ -82,7 +99,10 @@
     try {
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${item.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Username': $usernameStore
+        },
         body: JSON.stringify({
           id: item.id,
           part_number: item.part_number,
@@ -130,7 +150,9 @@
 
 <main>
   <div class="header">
-    <h2>{$t('stockCount.title')}</h2>
+    <div class="title-container">
+      <h2>{$t('stockCount.title')}</h2>
+    </div>
     <button class="back-button" on:click={goToInventory}>{$t('header.backToInventory')}</button>
   </div>
 
@@ -191,6 +213,12 @@
 </main>
 
 <style>
+  .title-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   main {
     max-width: 800px;
     margin: 0 auto;

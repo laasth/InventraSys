@@ -57,12 +57,33 @@ export default {
     removeUnits: 'Hvor mange enheter vil du fjerne fra {name}?',
     cancel: 'Avbryt',
     confirm: 'Bekreft',
-    addItem: 'Legg til ny vare'
+    addItem: 'Legg til ny vare',
+    welcome: 'Velkommen til InventraSys',
+    enterUsername: 'Vennligst skriv inn ditt brukernavn for å fortsette',
+    usernamePlaceholder: 'Skriv inn brukernavn',
+    submit: 'Send inn',
+    logout: 'Logg ut'
   },
   time: {
     justNow: 'Akkurat nå',
     minutesAgo: '{minutes} minutter siden',
     hoursAgo: '{hours} timer siden',
     daysAgo: '{days} dager siden'
+  },
+  auditLog: {
+    title: 'Endringslogg',
+    action: 'Handling',
+    username: 'Brukernavn',
+    timestamp: 'Tidspunkt',
+    itemName: 'Varenavn',
+    partNumber: 'Delenummer',
+    oldValue: 'Gammel Verdi',
+    newValue: 'Ny Verdi',
+    noLogs: 'Ingen endringer funnet',
+    viewAuditLog: 'Vis Endringslogg',
+    description: 'Denne loggen viser alle endringer gjort i lageret, inkludert hvem som gjorde endringene og når.',
+    viewDetails: 'Vis Detaljer',
+    closeDetails: 'Lukk',
+    valueDetails: 'Endringsdetaljer'
   }
 };

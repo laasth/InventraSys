@@ -1,13 +1,16 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { currentPage, paginationStore, filterStore, apiConfig, languageStore } from './lib/stores.js';
+  import { currentPage, paginationStore, filterStore, apiConfig, languageStore, usernameStore } from './lib/stores.js';
   import { t, availableLanguages } from './lib/i18n/index.js';
   import ManageInventory from './lib/ManageInventory.svelte';
   import StockCount from './lib/StockCount.svelte';
+  import AuditLog from './lib/AuditLog.svelte';
 
   let items = [];
   let selectedItem = null;
   let showDialog = false;
+  let showUsernameDialog = false;
+  let usernameInput = '';
   let removeQuantity = 1;
   let loading = false;
   let searchTimeout;
@@ -36,9 +39,21 @@
   }
 
   onMount(() => {
+    if (!$usernameStore) {
+      showUsernameDialog = true;
+    }
     fetchItems();
     setupSSE();
   });
+
+  async function handleUsernameSubmit() {
+    if (usernameInput.trim()) {
+      usernameStore.set(usernameInput.trim());
+      showUsernameDialog = false;
+      // Fetch items after username is set
+      await fetchItems();
+    }
+  }
 
   onDestroy(() => {
     if (eventSource) {
@@ -66,6 +81,11 @@
 
   async function fetchItems() {
     try {
+      if (!$usernameStore) {
+        showUsernameDialog = true;
+        return;
+      }
+
       loading = true;
       const params = new URLSearchParams({
         page: pageNum.toString(),
@@ -75,7 +95,11 @@
         sortOrder
       });
 
-      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?${params}`);
+      const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory?${params}`, {
+        headers: {
+          'X-Username': $usernameStore
+        }
+      });
       const data = await response.json();
       items = data.items;
       paginationStore.set(data.pagination);
@@ -119,7 +143,10 @@
       const newQuantity = Math.max(0, selectedItem.quantity - removeQuantity);
       const response = await fetch(`http://${$apiConfig.host}:${$apiConfig.port}/api/inventory/${selectedItem.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Username': $usernameStore
+        },
         body: JSON.stringify({ ...selectedItem, quantity: newQuantity })
       });
       
@@ -149,10 +176,17 @@
   <ManageInventory />
 {:else if $currentPage === 'stockCount'}
   <StockCount />
+{:else if $currentPage === 'auditLog'}
+  <AuditLog />
 {:else}
   <main>
     <div class="header">
-      <h2>{$t('header.listTitle')}</h2>
+      <div class="title-container">
+        <div class="user-section">
+          <div class="username">{$usernameStore}</div>
+        </div>
+        <h2>{$t('header.listTitle')}</h2>
+      </div>
       <div class="header-controls">
         <select 
           bind:value={$languageStore}
@@ -316,6 +350,27 @@
   </main>
 {/if}
 
+{#if showUsernameDialog}
+  <div class="dialog-overlay">
+    <div class="dialog">
+      <h3>{$t('dialog.welcome')}</h3>
+      <p>{$t('dialog.enterUsername')}</p>
+      <div class="dialog-content">
+        <input 
+          type="text" 
+          bind:value={usernameInput}
+          placeholder={$t('dialog.usernamePlaceholder')}
+          class="username-input"
+          on:keydown={e => e.key === 'Enter' && handleUsernameSubmit()}
+        />
+      </div>
+      <div class="dialog-buttons">
+        <button class="confirm-btn" on:click={handleUsernameSubmit}>{$t('dialog.submit')}</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if showDialog}
   <div class="dialog-overlay">
     <div class="dialog">
@@ -344,6 +399,24 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+  }
+
+  .title-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .user-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .username {
+    font-size: 12px;
+    color: #6c757d;
   }
 
   .header-controls {
@@ -663,7 +736,8 @@
     margin-bottom: 24px;
   }
 
-  .quantity-input {
+  .quantity-input,
+  .username-input {
     width: 120px;
     padding: 6px 10px;
     border: 1px solid #ced4da;
@@ -675,10 +749,15 @@
     display: block;
   }
 
-  .quantity-input:focus {
+  .quantity-input:focus,
+  .username-input:focus {
     outline: none;
     border-color: #646cff;
     box-shadow: 0 0 0 2px rgba(100, 108, 255, 0.25);
+  }
+
+  .username-input {
+    width: 100%;
   }
 
   .dialog-buttons {
