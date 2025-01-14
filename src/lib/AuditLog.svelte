@@ -46,18 +46,40 @@
     }
   }
 
-  function formatValue(value, truncate = true) {
+  function escapeHtml(unsafe) {
+    return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function formatValue(value, truncate = true, compareValue = null) {
     if (!value) return '-';
     try {
-      const parsed = JSON.parse(value);
-      const formatted = Object.entries(parsed)
-        .map(([key, val]) => `${key}: ${val}`)
-        .join(', ');
-      return truncate ? formatted : Object.entries(parsed)
-        .map(([key, val]) => `${key}: ${val}`)
-        .join('\n');
-    } catch {
-      return value;
+      // For dialog view
+      const oldObj = JSON.parse(value);
+      const newObj = compareValue ? JSON.parse(compareValue) : {};
+      
+      let html = '';
+      const allKeys = [...new Set([...Object.keys(oldObj), ...Object.keys(newObj)])];
+      
+      for (const key of allKeys) {
+        const oldVal = oldObj[key];
+        const newVal = newObj[key];
+        const line = `${key}: ${oldVal}`;
+        
+        if (oldVal !== newVal) {
+          html += `<div style="background-color: #ffeeba; border-left: 3px solid #ffc107; margin: 2px -12px; padding: 2px 9px; white-space: pre-wrap; word-break: break-all;">${escapeHtml(line)}</div>`;
+        } else {
+          html += `<div style="white-space: pre-wrap; word-break: break-all;">${escapeHtml(line)}</div>`;
+        }
+      }
+      
+      return html;
+    } catch (error) {
+      return escapeHtml(String(value));
     }
   }
 
@@ -127,8 +149,7 @@
       <div class="header-cell">{$t('auditLog.action')}</div>
       <div class="header-cell">{$t('auditLog.itemName')}</div>
       <div class="header-cell">{$t('auditLog.partNumber')}</div>
-      <div class="header-cell">{$t('auditLog.oldValue')}</div>
-      <div class="header-cell">{$t('auditLog.newValue')}</div>
+      <div class="header-cell"></div>
     </div>
 
     {#if logs.length === 0}
@@ -141,11 +162,13 @@
           <div class="table-cell">{log.action}</div>
           <div class="table-cell">{log.item_name || '-'}</div>
           <div class="table-cell">{log.item_part_number || '-'}</div>
-          <div class="table-cell value-cell clickable" on:click={() => showDetails(log)} title={$t('auditLog.viewDetails')}>
-            {formatValue(log.old_value)}
-          </div>
-          <div class="table-cell value-cell clickable" on:click={() => showDetails(log)} title={$t('auditLog.viewDetails')}>
-            {formatValue(log.new_value)}
+          <div class="table-cell actions">
+            <button 
+              class="details-button"
+              on:click={() => showDetails(log)}
+            >
+              {$t('auditLog.viewDetails')}
+            </button>
           </div>
         </div>
       {/each}
@@ -160,11 +183,15 @@
       <div class="dialog-content">
         <div class="value-section">
           <h4>{$t('auditLog.oldValue')}</h4>
-          <pre>{formatValue(selectedLog.old_value, false)}</pre>
+          <div class="value-content">
+            {@html formatValue(selectedLog.old_value, false, selectedLog.new_value)}
+          </div>
         </div>
         <div class="value-section">
           <h4>{$t('auditLog.newValue')}</h4>
-          <pre>{formatValue(selectedLog.new_value, false)}</pre>
+          <div class="value-content">
+            {@html formatValue(selectedLog.new_value, false, selectedLog.old_value)}
+          </div>
         </div>
       </div>
       <div class="dialog-actions">
@@ -179,14 +206,6 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .clickable {
-    cursor: pointer;
-  }
-
-  .clickable:hover {
-    background-color: #e9ecef;
   }
 
   .dialog-overlay {
@@ -236,13 +255,10 @@
     margin-bottom: 0;
   }
 
-  pre {
+  .value-content {
     background: #f8f9fa;
     padding: 12px;
     border-radius: 4px;
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-all;
     font-family: monospace;
     font-size: 13px;
     color: #212529;
@@ -383,7 +399,7 @@
 
   .table-header {
     display: grid;
-    grid-template-columns: 150px 120px 100px 150px 120px 1fr 1fr;
+    grid-template-columns: 150px 120px 100px 150px 120px 100px;
     background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
     color: #212529;
     font-weight: bold;
@@ -400,7 +416,7 @@
 
   .table-row {
     display: grid;
-    grid-template-columns: 150px 120px 100px 150px 120px 1fr 1fr;
+    grid-template-columns: 150px 120px 100px 150px 120px 100px;
     min-height: 32px;
     background: white;
     border-bottom: 1px solid #dee2e6;
@@ -424,11 +440,22 @@
     line-height: 1.4;
   }
 
-  .value-cell {
-    font-family: monospace;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .actions {
+    justify-content: center;
+  }
+
+  .details-button {
+    background: linear-gradient(180deg, #6c757d 0%, #5a6268 100%);
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .details-button:hover {
+    background: linear-gradient(180deg, #5a6268 0%, #545b62 100%);
   }
 
   .no-logs {

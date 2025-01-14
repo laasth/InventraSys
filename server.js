@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import express from 'express';
 import Database from 'better-sqlite3';
 import path from 'path';
@@ -140,27 +141,24 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    inventory_id INTEGER,
     username TEXT NOT NULL,
     action TEXT NOT NULL,
     old_value TEXT,
     new_value TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (inventory_id) REFERENCES inventory(id)
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
 // Helper function to log audit events
-function logAuditEvent(username, action, inventoryId, oldValue, newValue) {
+function logAuditEvent(username, action, oldValue, newValue) {
   const stmt = db.prepare(`
-    INSERT INTO audit_log (username, action, inventory_id, old_value, new_value)
-    VALUES (@username, @action, @inventoryId, @oldValue, @newValue)
+    INSERT INTO audit_log (username, action, old_value, new_value)
+    VALUES (@username, @action, @oldValue, @newValue)
   `);
   
   stmt.run({
     username,
     action,
-    inventoryId,
     oldValue: oldValue ? JSON.stringify(oldValue) : null,
     newValue: newValue ? JSON.stringify(newValue) : null
   });
@@ -182,10 +180,25 @@ app.get('/api/audit-logs', (req, res) => {
     const stmt = db.prepare(`
       SELECT 
         audit_log.*,
-        inventory.name as item_name,
-        inventory.part_number as item_part_number
+        CASE 
+          WHEN audit_log.action = 'DELETE' THEN JSON_EXTRACT(old_value, '$.name')
+          WHEN audit_log.action = 'CREATE' THEN JSON_EXTRACT(new_value, '$.name')
+          ELSE JSON_EXTRACT(new_value, '$.name')
+        END as item_name,
+        CASE 
+          WHEN audit_log.action = 'DELETE' THEN JSON_EXTRACT(old_value, '$.part_number')
+          WHEN audit_log.action = 'CREATE' THEN JSON_EXTRACT(new_value, '$.part_number')
+          ELSE JSON_EXTRACT(new_value, '$.part_number')
+        END as item_part_number,
+        CASE 
+          WHEN audit_log.action = 'DELETE' THEN old_value
+          WHEN audit_log.action = 'CREATE' THEN new_value
+          ELSE json_object(
+            'old', old_value,
+            'new', new_value
+          )
+        END as value_content
       FROM audit_log
-      LEFT JOIN inventory ON audit_log.inventory_id = inventory.id
       ORDER BY audit_log.timestamp DESC
       LIMIT ? OFFSET ?
     `);
@@ -285,7 +298,6 @@ app.post('/api/inventory', (req, res) => {
     logAuditEvent(
       username,
       'CREATE',
-      result.lastInsertRowid,
       null,
       data
     );
@@ -383,7 +395,6 @@ app.put('/api/inventory/:id', (req, res) => {
     logAuditEvent(
       username,
       'UPDATE',
-      data.id,
       currentItem,
       data
     );
@@ -424,17 +435,16 @@ app.delete('/api/inventory/:id', (req, res) => {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const stmt = db.prepare('DELETE FROM inventory WHERE id = ?');
-    const result = stmt.run(parseInt(id));
-    
-    // Log the audit event
+    // Log the audit event before deletion
     logAuditEvent(
       username,
       'DELETE',
-      parseInt(id),
       item,
       null
     );
+
+    const stmt = db.prepare('DELETE FROM inventory WHERE id = ?');
+    const result = stmt.run(parseInt(id));
     
     notifyClients();
     res.json({ success: true });

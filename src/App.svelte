@@ -6,6 +6,8 @@
   import StockCount from './lib/StockCount.svelte';
   import AuditLog from './lib/AuditLog.svelte';
 
+  const isDev = import.meta.env.DEV;
+
   let items = [];
   let selectedItem = null;
   let showDialog = false;
@@ -40,7 +42,12 @@
 
   onMount(() => {
     if (!$usernameStore) {
-      showUsernameDialog = true;
+      if (isDev) {
+        // In development mode, automatically set username to "develop"
+        usernameStore.set('develop');
+      } else {
+        showUsernameDialog = true;
+      }
     }
     fetchItems();
     setupSSE();
@@ -82,7 +89,9 @@
   async function fetchItems() {
     try {
       if (!$usernameStore) {
-        showUsernameDialog = true;
+        if (!isDev) {
+          showUsernameDialog = true;
+        }
         return;
       }
 
