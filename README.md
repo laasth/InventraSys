@@ -34,6 +34,9 @@ A modern inventory management system built with Svelte and Express, featuring re
 
 - **Stock Management Tools**
   - Dedicated stock counting interface
+    - Location-based sorting for efficient physical counting
+    - Filter items by count date (all, not counted in last 7 days, not counted in last 30 days)
+    - Real-time count status updates
   - CSV import functionality for bulk data management
   - Easy-to-use stock adjustment controls
 

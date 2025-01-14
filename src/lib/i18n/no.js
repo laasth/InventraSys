@@ -47,7 +47,10 @@ export default {
     lastCounted: 'Sist opptalt',
     delete: 'Slett',
     confirmDelete: 'Er du sikker på at du vil slette {name}?',
-    deleted: 'Varen ble slettet'
+    deleted: 'Varen ble slettet',
+    filterAll: 'Vis alle varer',
+    filter7Days: 'Ikke opptalt siste 7 dager',
+    filter30Days: 'Ikke opptalt siste 30 dager'
   },
   confirmations: {
     deleteItem: 'Er du sikker på at du vil slette denne varen?'

@@ -5,10 +5,12 @@
   import { formatDateTime } from './utils.js';
 
   let items = [];
+  let filteredItems = [];
   let currentItemIndex = 0;
   let loading = false;
   let quantityInput = '';
   let message = '';
+  let filterOption = 'all'; // 'all', '7days', '30days'
 
   onMount(async () => {
     if ($usernameStore) {
@@ -34,18 +36,20 @@
         }
       });
       const data = await response.json();
-      // Sort items: null last_stock_count first, then by oldest date
+      // Sort items by location first, then by last_stock_count
       items = data.items.sort((a, b) => {
-        // If both are null, keep original order
-        if (!a.last_stock_count && !b.last_stock_count) {
-          return 0;
-        }
-        // If only one is null, null should come first
+        // First sort by location
+        const locationCompare = (a.location || '').localeCompare(b.location || '');
+        if (locationCompare !== 0) return locationCompare;
+
+        // Then by last_stock_count
+        if (!a.last_stock_count && !b.last_stock_count) return 0;
         if (!a.last_stock_count) return -1;
         if (!b.last_stock_count) return 1;
-        // Compare dates (oldest first)
         return new Date(a.last_stock_count).getTime() - new Date(b.last_stock_count).getTime();
       });
+      
+      applyFilter();
     } catch (error) {
       console.error('Error fetching items:', error);
     } finally {
@@ -144,7 +148,29 @@
     currentPage.set('inventory');
   }
 
-  $: currentItem = items[currentItemIndex] || null;
+  function applyFilter() {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    filteredItems = items.filter(item => {
+      if (filterOption === 'all') return true;
+      if (!item.last_stock_count) return true;
+
+      const lastCount = new Date(item.last_stock_count);
+      if (filterOption === '7days') {
+        return lastCount < sevenDaysAgo;
+      } else if (filterOption === '30days') {
+        return lastCount < thirtyDaysAgo;
+      }
+      return true;
+    });
+
+    // Reset current index when filter changes
+    currentItemIndex = 0;
+  }
+
+  $: currentItem = filteredItems[currentItemIndex] || null;
   $: quantityInput = currentItem?.quantity?.toString() || '';
 </script>
 
@@ -152,6 +178,13 @@
   <div class="header">
     <div class="title-container">
       <h2>{$t('stockCount.title')}</h2>
+      <div class="filter-container">
+        <select bind:value={filterOption} on:change={applyFilter}>
+          <option value="all">{$t('stockCount.filterAll')}</option>
+          <option value="7days">{$t('stockCount.filter7Days')}</option>
+          <option value="30days">{$t('stockCount.filter30Days')}</option>
+        </select>
+      </div>
     </div>
     <button class="back-button" on:click={goToInventory}>{$t('header.backToInventory')}</button>
   </div>
@@ -201,7 +234,7 @@
         {/if}
 
         <div class="progress">
-          {currentItemIndex + 1} / {items.length} {$t('stockCount.items')}
+          {currentItemIndex + 1} / {filteredItems.length} {$t('stockCount.items')}
         </div>
       </div>
     </div>
@@ -217,6 +250,27 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    gap: 10px;
+  }
+
+  .filter-container {
+    margin-top: 8px;
+  }
+
+  .filter-container select {
+    padding: 6px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: white;
+    color: #212529;
+    cursor: pointer;
+  }
+
+  .filter-container select:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
   }
 
   main {

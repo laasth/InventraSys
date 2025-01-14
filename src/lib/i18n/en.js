@@ -47,7 +47,10 @@ export default {
     lastCounted: 'Last counted',
     delete: 'Delete',
     confirmDelete: 'Are you sure you want to delete {name}?',
-    deleted: 'Item deleted successfully'
+    deleted: 'Item deleted successfully',
+    filterAll: 'Show all items',
+    filter7Days: 'Not counted in last 7 days',
+    filter30Days: 'Not counted in last 30 days'
   },
   confirmations: {
     deleteItem: 'Are you sure you want to delete this item?'
