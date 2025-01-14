@@ -58,7 +58,7 @@
     
     const item = items[currentItemIndex];
     
-    if (!confirm($t('stockCount.confirmDelete', { values: { name: item.name } }))) {
+    if (!confirm($t('stockCount.confirmDelete', { name: item.name }))) {
       return;
     }
 
