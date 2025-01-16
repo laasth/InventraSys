@@ -150,6 +150,17 @@
     }, 300);
   }
 
+  function clearSearch() {
+    Logger.info('Search cleared');
+    filterStore.update(state => ({
+      ...state,
+      searchInput: '',
+      searchQuery: '',
+      currentPage: 1
+    }));
+    paginationStore.update(state => ({ ...state, currentPage: 1 }));
+  }
+
   function handleSort(column) {
     const newOrder = $filterStore.sortBy === column && $filterStore.sortOrder === 'asc' ? 'desc' : 'asc';
     Logger.info('Sort changed', { column, order: newOrder });
@@ -298,6 +309,9 @@
           placeholder={$t('header.search')}
           class="search-input"
         />
+        {#if $filterStore.searchInput}
+          <button class="clear-search-button" on:click={clearSearch}>×</button>
+        {/if}
       </div>
       <button class="back-button" on:click={goToList}>{$t('header.backToList')}</button>
     </div>
@@ -711,6 +725,25 @@
 
   .search-container {
     position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .clear-search-button {
+    padding: 4px 8px;
+    margin: 0;
+    background: linear-gradient(180deg, #6c757d 0%, #5a6268 100%);
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .clear-search-button:hover {
+    background: linear-gradient(180deg, #5a6268 0%, #545b62 100%);
   }
 
   .search-input {
