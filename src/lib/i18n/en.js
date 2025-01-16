@@ -88,5 +88,12 @@ export default {
     viewDetails: 'View Details',
     closeDetails: 'Close',
     valueDetails: 'Change Details'
+  },
+  report: {
+    title: 'Inventory Report',
+    totalValue: 'Total Purchase Value',
+    totalItems: 'Total Items in Stock',
+    viewReport: 'View Report',
+    backToInventory: 'Back to Inventory'
   }
 };

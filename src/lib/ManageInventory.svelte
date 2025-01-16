@@ -322,6 +322,7 @@
       <button class="add-button" on:click={openAddDialog}>{$t('actions.add')}</button>
       <button class="stock-count-button" on:click={() => currentPage.set('stockCount')}>{$t('actions.stockCount')}</button>
       <button class="audit-log-button" on:click={() => currentPage.set('auditLog')}>{$t('auditLog.viewAuditLog')}</button>
+      <button class="report-button" on:click={() => currentPage.set('report')}>{$t('report.viewReport')}</button>
     </div>
     <div class="pagination">
       <span class="pagination-info">
@@ -793,6 +794,14 @@
 
   .audit-log-button:hover {
     background: linear-gradient(180deg, #6610f2 0%, #520dc2 100%);
+  }
+
+  .report-button {
+    background: linear-gradient(180deg, #fd7e14 0%, #e96b02 100%);
+  }
+
+  .report-button:hover {
+    background: linear-gradient(180deg, #e96b02 0%, #d66002 100%);
   }
 
   .pagination {

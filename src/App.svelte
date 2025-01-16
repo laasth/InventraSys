@@ -6,6 +6,7 @@
   import ManageInventory from './lib/ManageInventory.svelte';
   import StockCount from './lib/StockCount.svelte';
   import AuditLog from './lib/AuditLog.svelte';
+  import Report from './lib/Report.svelte';
 
   const isDev = import.meta.env.DEV;
 
@@ -238,6 +239,8 @@
   <StockCount />
 {:else if $currentPage === 'auditLog'}
   <AuditLog />
+{:else if $currentPage === 'report'}
+  <Report />
 {:else}
   <main>
     <div class="header">

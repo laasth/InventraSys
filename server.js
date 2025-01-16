@@ -516,6 +516,50 @@ app.post('/api/logs', (req, res) => {
   }
 });
 
+// Get report data
+app.get('/api/report', (req, res) => {
+  const username = req.headers['x-username'];
+  if (!username) {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+
+  try {
+    logAPIRequest(req, 'Fetching report data');
+
+    // Calculate total value and items
+    // Get totals
+    const totalsStmt = db.prepare(`
+      SELECT 
+        SUM(quantity * purchase_price) as totalValue,
+        SUM(quantity) as totalItems
+      FROM inventory
+    `);
+    
+    const totals = totalsStmt.get();
+
+    // Get all inventory items
+    const itemsStmt = db.prepare(`
+      SELECT 
+        id, part_number, name, description, location,
+        purchase_price, sale_price, quantity,
+        last_modified, last_stock_count
+      FROM inventory
+      ORDER BY location, part_number
+    `);
+    
+    const items = itemsStmt.all();
+    
+    res.json({
+      totalValue: totals.totalValue || 0,
+      totalItems: totals.totalItems || 0,
+      items: items
+    });
+  } catch (error) {
+    logAPIError(req, error, 'Error fetching report data');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Handle non-API routes
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) {

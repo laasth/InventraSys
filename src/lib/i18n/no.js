@@ -88,5 +88,13 @@ export default {
     viewDetails: 'Vis Detaljer',
     closeDetails: 'Lukk',
     valueDetails: 'Endringsdetaljer'
+  },
+  report: {
+    title: 'Lagerrapport',
+    totalValue: 'Total Innkjøpsverdi',
+    totalItems: 'Totalt Antall Varer',
+    viewReport: 'Vis Rapport',
+    backToInventory: 'Tilbake til Lager',
+    inventoryList: 'Komplett Lagerliste'
   }
 };
